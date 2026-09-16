@@ -136,6 +136,11 @@ export function rendre(conteneur, { naviguer }) {
             + 'qui portent le même code'
           : 'Ce navigateur seulement, aucune donnée envoyée en ligne',
       }),
+      // Repliée dans les détails techniques, la version était introuvable
+      // quand on se demande si l'application est à jour, ce qui est
+      // justement la question qu'on se pose en premier.
+      el('dt', { text: 'Version' }),
+      el('dd', { text: store.VERSION_APP }),
     ])),
   ]);
 
@@ -351,12 +356,14 @@ function codeEnPlace(actuel) {
 }
 
 /**
- * Ce que l'application voit de son hébergeur, en quatre lignes.
+ * Ce que l'application voit de son hébergeur, en trois lignes.
  *
  * Quand la synchronisation ne s'établit pas sur un appareil et pas sur un
- * autre, la cause est invisible depuis l'écran : version restée en cache,
- * pont absent, autorisation jamais demandée. Ces lignes se photographient et
- * disent laquelle, au lieu de laisser essayer au hasard.
+ * autre, la cause est invisible depuis l'écran : pont absent, autorisation
+ * jamais demandée, base injoignable. Ces lignes se photographient et disent
+ * laquelle, au lieu de laisser essayer au hasard. La version, elle, se lit
+ * dans « À propos » sans rien déplier : c'est la première chose qu'on
+ * vérifie, elle n'a rien à faire derrière un triangle.
  */
 function diagnostic() {
   const valeurs = {};
@@ -368,7 +375,6 @@ function diagnostic() {
   const bloc = el('details', { class: 'diagnostic' }, [
     el('summary', { text: 'Détails techniques' }),
     el('dl', { class: 'definitions' }, [
-      ...ligne('Version de l’application', 'version'),
       ...ligne('Pont de la plateforme', 'pont'),
       ...ligne('Autorisation des données', 'autorisation'),
       ...ligne('Espace partagé', 'espace'),
@@ -376,7 +382,6 @@ function diagnostic() {
   ]);
 
   const use = globalThis.claude?.use;
-  valeurs.version.textContent = store.VERSION_APP;
   valeurs.pont.textContent = typeof use === 'function' ? 'présent' : 'absent';
   valeurs.espace.textContent = store.partageBranche() ? 'ouvert' : 'fermé';
 
