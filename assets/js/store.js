@@ -17,7 +17,7 @@ const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '22';
+export const VERSION_APP = '23';
 
 const etat = {
   vins: [],
@@ -156,19 +156,22 @@ export async function charger() {
 /**
  * Adopte ce que disent les autres appareils.
  *
- * Un instantané vide alors que la liste locale est garnie signale une lecture
- * incomplète plutôt qu'une cave réellement vidée : mieux vaut l'ignorer que
- * d'effacer cent dix-neuf fiches sur un incident de réseau. Le prochain
- * instantané ramènera le contenu réel.
+ * Une liste vide était autrefois ignorée, par crainte qu'une lecture partielle
+ * n'efface la cave. Le transport actuel lève sur la moindre erreur plutôt que
+ * de rendre une liste incomplète : une liste vide veut donc dire vide. La
+ * garde, elle, empêchait de recevoir un « vider la cave » fait ailleurs, et
+ * pire, faisait ressusciter à la connexion suivante tout ce qui venait d'être
+ * effacé.
+ *
+ * `majLe` suit, sans quoi l'application ne verrait pas qu'elle a changé quand
+ * le nombre de fiches reste le même : une quantité corrigée sur l'autre
+ * appareil n'aurait pas redessiné l'écran.
  */
 function appliquerDistant(cle, fiches) {
-  if (cle === 'vins') {
-    if (!fiches.length && etat.vins.length) return;
-    etat.vins = fiches.map(normaliserVin);
-  } else {
-    if (!fiches.length && etat.degustations.length) return;
-    etat.degustations = fiches.map(normaliserDegustation);
-  }
+  if (cle === 'vins') etat.vins = fiches.map(normaliserVin);
+  else etat.degustations = fiches.map(normaliserDegustation);
+
+  etat.majLe = new Date().toISOString();
   ecrireLocal(CLE_DONNEES, {
     version: VERSION_DONNEES,
     majLe: etat.majLe,

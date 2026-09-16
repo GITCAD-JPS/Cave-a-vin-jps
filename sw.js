@@ -1,7 +1,7 @@
 /* Service worker : la cave reste consultable sans réseau, y compris au sous-sol.
    Changez VERSION à chaque modification des fichiers pour forcer la mise à jour. */
 
-const VERSION = 'cave-a-vin-v22';
+const VERSION = 'cave-a-vin-v23';
 
 const COQUILLE = [
   './',
@@ -39,18 +39,15 @@ self.addEventListener('install', (evenement) => {
   evenement.waitUntil((async () => {
     const cache = await caches.open(VERSION);
     await cache.addAll(COQUILLE);
-      await self.skipWaiting();
+    await self.skipWaiting();
   })());
 });
 
-/**
- * Le moteur de lecture pèse une dizaine de méga-octets : le précharger
- * imposerait cette attente à la première ouverture, alors que la plupart des
- * consultations ne lisent aucune étiquette. Il est donc mis en cache à la
- * première lecture, par la règle générale du gestionnaire de requêtes, et
- * reste disponible hors ligne ensuite.
- */
-
+// Le moteur de lecture pèse une dizaine de méga-octets : le précharger
+// imposerait cette attente à la première ouverture, alors que la plupart des
+// consultations ne lisent aucune étiquette. Il est mis en cache à la première
+// lecture, par la règle générale du gestionnaire de requêtes, et reste
+// disponible hors ligne ensuite.
 
 self.addEventListener('activate', (evenement) => {
   evenement.waitUntil((async () => {

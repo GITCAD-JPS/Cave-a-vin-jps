@@ -107,9 +107,24 @@ async function appeler(url, options = {}) {
   return reponse.status === 204 ? null : reponse.json();
 }
 
+/**
+ * Lit une collection entière, page après page.
+ *
+ * Le service décide seul du nombre de documents qu'il rend, et s'arrête bien
+ * avant le millier demandé. S'en tenir à la première page aurait tronqué les
+ * grandes caves en silence, et l'application aurait pris ce qui manquait pour
+ * des fiches effacées.
+ */
 const lireCollection = async (collection) => {
-  const paquet = await appeler(`${chemin(collection)}?pageSize=1000`);
-  return (paquet?.documents || []).map(depuisDocument).filter(Boolean);
+  const fiches = [];
+  let jeton = '';
+  do {
+    const suite = jeton ? `&pageToken=${encodeURIComponent(jeton)}` : '';
+    const paquet = await appeler(`${chemin(collection)}?pageSize=300${suite}`);
+    fiches.push(...(paquet?.documents || []).map(depuisDocument).filter(Boolean));
+    jeton = paquet?.nextPageToken || '';
+  } while (jeton);
+  return fiches;
 };
 
 const ecrireFiche = (collection, fiche) => appeler(
@@ -122,12 +137,25 @@ const effacerFiche = (collection, id) => appeler(
   chemin(collection, id), { method: 'DELETE' },
 );
 
-/** Marque la cave comme modifiée, pour que les autres appareils le sachent. */
-const marquerTemoin = () => appeler(
-  chemin('meta', TEMOIN),
-  { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: { majLe: { stringValue: new Date().toISOString() } } }) },
-).catch(() => {});
+/**
+ * Marque la cave comme modifiée, pour que les autres appareils le sachent, et
+ * rend l'heure posée. La retenir évite de reprendre toute la cave au sondage
+ * suivant pour y retrouver ce qu'on vient d'y écrire soi-même.
+ */
+async function marquerTemoin() {
+  const majLe = new Date().toISOString();
+  try {
+    await appeler(chemin('meta', TEMOIN), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { majLe: { stringValue: majLe } } }),
+    });
+    return majLe;
+  } catch {
+    // Sans témoin, les autres appareils l'apprendront à la prochaine écriture.
+    return null;
+  }
+}
 
 async function lireTemoin() {
   try {
@@ -229,7 +257,13 @@ async function rapatrier() {
  */
 function surveiller() {
   clearInterval(minuteur);
+  // Une cave garnie sur un réseau lent peut mettre plus de huit secondes à
+  // revenir. Sans ce garde-fou, deux relectures se chevaucheraient et la plus
+  // ancienne pourrait s'appliquer en dernier.
+  let occupe = false;
   minuteur = setInterval(async () => {
+    if (occupe) return;
+    occupe = true;
     try {
       const temoin = await lireTemoin();
       changerEtat('connecte');
@@ -240,6 +274,8 @@ function surveiller() {
     } catch (erreur) {
       console.info('Cave partagée silencieuse', erreur);
       changerEtat('attente');
+    } finally {
+      occupe = false;
     }
   }, PERIODE);
 }
@@ -261,7 +297,7 @@ function pousser(collection, fiche, suppression = false) {
 
   promesse
     .then(() => marquerTemoin())
-    .then(() => { dernierTemoin = null; changerEtat('connecte'); })
+    .then((pose) => { if (pose) dernierTemoin = pose; changerEtat('connecte'); })
     .catch((erreur) => {
       console.info('Modification mise de côté', erreur);
       const index = enAttente.findIndex(
@@ -307,6 +343,21 @@ export async function lireApercu(cle) {
   }
 }
 
+/** Les clés des aperçus déposés, sans rapatrier les images elles-mêmes. */
+async function lireApercus() {
+  const cles = [];
+  let jeton = '';
+  do {
+    const suite = jeton ? `&pageToken=${encodeURIComponent(jeton)}` : '';
+    const paquet = await appeler(
+      `${chemin(COLLECTIONS.apercus)}?pageSize=300&mask.fieldPaths=id${suite}`,
+    );
+    cles.push(...(paquet?.documents || []).map((d) => d.name.split('/').pop()));
+    jeton = paquet?.nextPageToken || '';
+  } while (jeton);
+  return cles;
+}
+
 export function effacerApercu(cle) {
   if (!code) return Promise.resolve();
   return appeler(chemin(COLLECTIONS.apercus, cle), { method: 'DELETE' }).catch(() => {});
@@ -315,17 +366,24 @@ export function effacerApercu(cle) {
 /** Remplace tout le contenu partagé, après une restauration ou une remise à zéro. */
 export async function remplacerTout({ vins, degustations }) {
   if (!code) return;
-  const [ancienVins, ancienDegustations] = await Promise.all([
+  const [ancienVins, ancienDegustations, anciensApercus] = await Promise.all([
     lireCollection(COLLECTIONS.vins),
     lireCollection(COLLECTIONS.degustations),
+    lireApercus(),
   ]);
   const gardes = new Set([...vins, ...degustations].map((f) => f.id));
+  // Un aperçu que plus aucune fiche ne réclame n'a plus de raison d'occuper
+  // une place : vider la cave doit aussi emporter ses images.
+  const photosGardees = new Set([...vins, ...degustations]
+    .map((f) => f.photoLocale).filter(Boolean));
 
   await Promise.all([
     ...ancienVins.filter((f) => !gardes.has(f.id))
       .map((f) => effacerFiche(COLLECTIONS.vins, f.id).catch(() => {})),
     ...ancienDegustations.filter((f) => !gardes.has(f.id))
       .map((f) => effacerFiche(COLLECTIONS.degustations, f.id).catch(() => {})),
+    ...anciensApercus.filter((cle) => !photosGardees.has(cle))
+      .map((cle) => effacerApercu(cle)),
     ...vins.map((v) => ecrireFiche(COLLECTIONS.vins, v).catch(() => {})),
     ...degustations.map((d) => ecrireFiche(COLLECTIONS.degustations, d).catch(() => {})),
   ]);
