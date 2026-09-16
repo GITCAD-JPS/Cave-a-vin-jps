@@ -190,7 +190,12 @@ async function fusionner(locales) {
     ...aEnvoyer(locales.degustations, distantesDegustations, vide)
       .map((d) => ecrireFiche(COLLECTIONS.degustations, d)),
   ];
-  if (!envois.length) return;
+  // Une cave qui vient de naître n'a pas de témoin, et chaque sondage le
+  // redemanderait en vain. On le pose tout de suite, même sans rien à envoyer.
+  if (!envois.length) {
+    if (vide) await marquerTemoin();
+    return;
+  }
   await Promise.all(envois);
   await marquerTemoin();
 }

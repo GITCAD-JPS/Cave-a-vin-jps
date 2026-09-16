@@ -17,7 +17,7 @@ const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '19';
+export const VERSION_APP = '20';
 
 const etat = {
   vins: [],
@@ -56,6 +56,22 @@ export const inventerCode = () => synchro.inventerCode();
  * Repartir de zéro est plus sûr que de démêler l'ancien du nouveau.
  */
 export function definirCodePartage(valeur) {
+  synchro.enregistrerCode(valeur);
+  location.reload();
+}
+
+/**
+ * Rejoint une cave neuve en laissant ici le contenu de cet appareil.
+ *
+ * Créer un partage publie d'ordinaire la cave de l'appareil, ce qui est
+ * exactement ce qu'on veut quand on relie un deuxième téléphone. Repartir
+ * de rien est l'autre besoin, et il faut vider le local avant de changer de
+ * code, sans quoi le contenu serait publié dans la nouvelle cave. L'ancienne
+ * n'est pas touchée : on la quitte, on ne l'efface pas.
+ */
+export function demarrerCaveVide(valeur) {
+  adopter({ vins: [], degustations: [] });
+  enregistrer();
   synchro.enregistrerCode(valeur);
   location.reload();
 }

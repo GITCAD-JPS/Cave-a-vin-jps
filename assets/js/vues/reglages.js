@@ -249,13 +249,43 @@ function reglageDuCode() {
     'aria-label': 'Code de la cave à rejoindre',
   });
 
+  // Créer un partage publie la cave de cet appareil, ce qu'on veut en reliant
+  // un deuxième téléphone. Sur un appareil déjà garni, le bouton seul ne le
+  // disait pas, et on pouvait croire repartir de rien tout en emportant tout.
+  const garnie = store.vins().length + store.degustations().length;
+
   return el('div', { class: 'partage-code' }, [
-    el('div', { class: 'rangee-boutons' }, [
-      bouton('Créer une cave partagée', {
-        classe: 'bouton bouton-primaire',
-        onclick: () => store.definirCodePartage(store.inventerCode()),
-      }),
-    ]),
+    garnie
+      ? el('div', {}, [
+        el('p', {
+          class: 'discret',
+          text: `Cet appareil contient ${garnie} fiche${garnie > 1 ? 's' : ''}. `
+            + 'Choisissez ce que devient la cave partagée que vous créez.',
+        }),
+        el('div', { class: 'rangee-boutons' }, [
+          bouton('Y publier cette cave', {
+            classe: 'bouton bouton-primaire',
+            onclick: () => store.definirCodePartage(store.inventerCode()),
+          }),
+          bouton('Créer une cave vide', {
+            onclick: async () => {
+              const accord = await confirmer(
+                'Créer une cave vide',
+                `Les ${garnie} fiches de cet appareil ne seront pas reprises. `
+                  + 'Si elles ne sont que là, exportez une sauvegarde d’abord.',
+                { libelleAction: 'Créer une cave vide' },
+              );
+              if (accord) store.demarrerCaveVide(store.inventerCode());
+            },
+          }),
+        ]),
+      ])
+      : el('div', { class: 'rangee-boutons' }, [
+        bouton('Créer une cave partagée', {
+          classe: 'bouton bouton-primaire',
+          onclick: () => store.definirCodePartage(store.inventerCode()),
+        }),
+      ]),
     el('p', {
       class: 'discret',
       text: 'Ou rejoignez celle qui existe déjà, avec le code affiché sur '

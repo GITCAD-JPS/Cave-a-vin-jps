@@ -106,6 +106,10 @@ code d'accès de l'étape suivante.
 Ouvrez votre site, onglet **Réglages**, section **Cave partagée**, bouton
 **Créer une cave partagée**.
 
+Si votre appareil contient déjà des fiches, l'application vous demande ce
+qu'elles deviennent : les publier dans la cave que vous créez, ou partir d'une
+cave vide. Publier est ce qu'on veut en reliant un deuxième appareil.
+
 Un code apparaît. **Notez-le**, c'est la seule chose qui ouvre votre cave.
 
 Sur chaque autre appareil, ouvrez la même adresse, collez ce code, et cliquez
