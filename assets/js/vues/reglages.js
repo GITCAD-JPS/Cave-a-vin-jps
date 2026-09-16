@@ -132,8 +132,8 @@ export function rendre(conteneur, { naviguer }) {
       el('dt', { text: 'Stockage' }),
       el('dd', {
         text: store.partageBranche()
-          ? 'Ce navigateur, et un espace partagé rattaché à votre compte, ouvert '
-            + 'aux appareils que vous avez autorisés'
+          ? 'Ce navigateur, et une base en ligne où se retrouvent les appareils '
+            + 'qui portent le même code'
           : 'Ce navigateur seulement, aucune donnée envoyée en ligne',
       }),
     ])),
@@ -193,9 +193,9 @@ const ETATS_SYNCHRO = {
   },
   connecte: {
     titre: 'Active',
-    texte: 'La cave est partagée entre vos appareils et ceux des personnes à qui '
-      + 'vous avez donné le droit de modifier. Une bouteille ouverte sur l’un '
-      + 'apparaît sur les autres en quelques secondes.',
+    texte: 'La cave est partagée entre tous les appareils qui portent ce code, '
+      + 'quels qu’ils soient et à qui qu’ils appartiennent. Une bouteille '
+      + 'ouverte sur l’un apparaît sur les autres en quelques secondes.',
   },
   attente: {
     titre: 'En attente',
