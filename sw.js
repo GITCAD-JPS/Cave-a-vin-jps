@@ -1,7 +1,7 @@
 /* Service worker : la cave reste consultable sans réseau, y compris au sous-sol.
    Changez VERSION à chaque modification des fichiers pour forcer la mise à jour. */
 
-const VERSION = 'cave-a-vin-v18';
+const VERSION = 'cave-a-vin-v19';
 
 const COQUILLE = [
   './',
@@ -33,15 +33,13 @@ const COQUILLE = [
   './assets/icons/icone-180.png',
   './assets/icons/icone-192.png',
   './assets/icons/icone-512.png',
-  './data/seed.json',
 ];
 
 self.addEventListener('install', (evenement) => {
   evenement.waitUntil((async () => {
     const cache = await caches.open(VERSION);
     await cache.addAll(COQUILLE);
-    await precacherPhotos(cache);
-    await self.skipWaiting();
+      await self.skipWaiting();
   })());
 });
 
@@ -53,20 +51,6 @@ self.addEventListener('install', (evenement) => {
  * reste disponible hors ligne ensuite.
  */
 
-/** Met les étiquettes du classeur en cache, sans faire échouer l'installation. */
-async function precacherPhotos(cache) {
-  try {
-    const reponse = await cache.match('./data/seed.json') || await fetch('./data/seed.json');
-    const seed = await reponse.json();
-    const chemins = [...(seed.vins || []), ...(seed.degustations || [])]
-      .map((fiche) => fiche.photo)
-      .filter(Boolean)
-      .map((chemin) => `./${chemin}`);
-    await Promise.allSettled(chemins.map((chemin) => cache.add(chemin)));
-  } catch (erreur) {
-    console.info('Photos non mises en cache', erreur);
-  }
-}
 
 self.addEventListener('activate', (evenement) => {
   evenement.waitUntil((async () => {

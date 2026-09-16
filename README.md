@@ -1,18 +1,16 @@
 # Cave à vin
 
-**→ [Ouvrir la copie autonome](https://gitcad-jps.github.io/Cave-a-vin-jps/)**
+Application web pour tenir l'inventaire d'une cave à vin : les bouteilles,
+leurs emplacements, les photos d'étiquettes et le journal des dégustations.
+Elle se partage entre plusieurs appareils.
 
-Cette adresse sert une copie **sans synchronisation** : la cave y vit dans le
-seul navigateur qui l'ouvre. Elle ne remplace pas l'adresse partagée, où les
-appareils se retrouvent. Saisir dans l'une en croyant alimenter l'autre coûte
-le travail d'une soirée, et l'application le dit maintenant par un bandeau.
+**Vous voulez votre propre cave ?** Suivez [INSTALLATION.md](INSTALLATION.md).
+Une vingtaine de minutes, une seule fois, sans rien programmer. Vous obtenez
+votre site et votre base, qui n'appartiennent qu'à vous.
 
-Application web pour tenir l'inventaire de la cave : les bouteilles, leurs
-emplacements, les photos d'étiquettes et le journal des dégustations.
-
-Elle remplace le classeur `data/cave_a_vins.xlsx`, dont elle reprend le
-contenu au premier lancement : 119 vins, 188 bouteilles en cave, 102 photos
-d'étiquettes et 21 dégustations.
+L'application démarre sur une cave vide. Ce qui la remplit vient de votre
+saisie, d'une sauvegarde restaurée, ou de la cave partagée que vous
+rejoignez.
 
 ## Ce qu'elle fait
 
@@ -146,9 +144,10 @@ l'emporte.
 Chaque fiche porte la date à laquelle un appareil l'a modifiée, et non celle de
 son envoi. C'est elle qui départage deux appareils : celui qui retrouve le
 réseau après deux jours ne passe pas pour le plus à jour. Elle règle aussi
-l'arrivée d'un appareil supplémentaire, qui part du même classeur, avec les
-mêmes identifiants, et n'a donc rien à apporter : en se branchant, il n'envoie
-que les fiches qu'il a réellement touchées depuis, et reçoit le reste.
+l'arrivée d'un appareil supplémentaire : en se branchant, il n'envoie que les
+fiches que le partage ignore ou qu'il connaît moins à jour, et reçoit le
+reste. Deux appareils partis du même contenu portent les mêmes identifiants et
+n'ont donc rien à s'apporter tant qu'ils n'ont rien modifié.
 
 Firestore n'offre pas d'écoute temps réel en HTTP simple. Plutôt que de relire
 la cave entière sans arrêt, l'application interroge toutes les huit secondes un
@@ -175,22 +174,21 @@ servie : ce n'est pas elles qui protègent la cave, c'est le code d'accès.
 
 ## Où sont les données
 
-Au premier lancement, l'application lit `data/seed.json` et le recopie dans le
-navigateur. Ensuite, tout est lu et écrit localement :
+L'application démarre sur une cave vide, puis tout est lu et écrit
+localement :
 
 | Emplacement | Contenu |
 | --- | --- |
 | `localStorage` | Les fiches des vins, le journal des dégustations, les préférences |
 | `IndexedDB` | Les photos prises depuis l'application |
-| `data/photos/` | Les 102 photos d'étiquettes issues du classeur |
-| `data/seed.json` | Le point de départ, jamais modifié par l'application |
+| `data/photos/` | Des photos d'étiquettes livrées avec le dépôt, s'il y en a |
 
-Sans stockage partagé, les données vivent dans un seul navigateur et ne
-suivent pas d'un appareil à l'autre. Le bouton « Sauvegarde complète » des
-réglages télécharge un fichier JSON contenant les fiches et les photos
-ajoutées, que « Restaurer une sauvegarde » relit sur un autre appareil. Cette
-sauvegarde reste utile même avec la synchronisation, pour garder une copie
-hors de l'application.
+Sans code d'accès, les données vivent dans un seul navigateur et ne suivent
+pas d'un appareil à l'autre. Le bouton « Sauvegarde complète » des réglages
+télécharge un fichier JSON contenant les fiches et les photos ajoutées, que
+« Restaurer une sauvegarde » relit sur un autre appareil. Cette sauvegarde
+reste utile même avec le partage, pour garder une copie hors de
+l'application.
 
 Un cadre d'artefact interdit à la page de déclencher un téléchargement : le
 lien y reste inerte, sans la moindre erreur, et l'application annoncerait une
@@ -199,44 +197,6 @@ de fichier de l'hébergeur quand elle existe, et par le lien ordinaire partout
 ailleurs. Dans les deux cas, le message de confirmation n'apparaît qu'une fois
 le fichier réellement remis, et un refus ne dit rien du tout.
 
-Vider les données de site du navigateur efface la cave. Une sauvegarde
-régulière est la seule protection.
-
-## Réimporter le classeur
-
-Le script d'import relit le classeur Excel et régénère `data/seed.json` ainsi
-que les photos. Il sert si le classeur est mis à jour, ou pour repartir de
-zéro.
-
-```bash
-pip install openpyxl
-python3 tools/xlsx_to_seed.py            # lit data/cave_a_vins.xlsx
-python3 tools/xlsx_to_seed.py autre.xlsx # ou un autre classeur
-```
-
-Le script attend deux feuilles, « Cave à vins » et « Vins bus (hors cave) »,
-avec les colonnes du classeur d'origine. Les photos d'étiquettes ne sont pas
-dans des cellules mais ancrées à droite de chaque ligne : le script lit ces
-ancres pour rattacher chaque image à son vin.
-
-Deux traitements méritent d'être signalés, parce qu'ils ajoutent de
-l'information que le classeur n'avait pas.
-
-**La couleur** n'existe pas dans le classeur. Elle est déduite du cépage, de
-l'appellation et du nom du vin. Cinq vins ne portent ni cépage ni appellation
-exploitable et restent marqués « à préciser », visibles d'un coup dans
-l'application. Trois bourgognes déclinés en rouge et en blanc ont été tranchés
-d'après la photo de leur étiquette, ce que le code documente à l'endroit
-concerné.
-
-**L'emplacement précis** était mélangé aux notes de dégustation, sous la forme
-« Emplacement précis : armoire à vin, 2ème rangée haute ». Le script l'isole
-dans son propre champ et laisse le reste de la note intact.
-
-Les incohérences du classeur, elles, ne sont pas corrigées : quand la quantité
-ne correspond pas à la somme des emplacements, ou qu'un vin est en cave sans
-bouteille, l'application le signale et laisse trancher. Personne d'autre que
-le propriétaire de la cave ne sait laquelle des deux valeurs est la bonne.
 
 ## Organisation du code
 
@@ -261,8 +221,7 @@ assets/js/
   dom.js                   aides pour construire le DOM
   theme.js                 thème clair, sombre ou système
   vues/                    une vue par onglet, la fiche d'un vin, les parcours photo
-data/                      classeur d'origine, jeu de données initial, photos
-tools/xlsx_to_seed.py      import du classeur vers data/
+data/photos/               photos d'étiquettes livrées avec le dépôt
 ```
 
 Le code n'utilise aucune bibliothèque ni étape de compilation : des modules

@@ -140,6 +140,7 @@ async function demarrer() {
   avertirSiStockageRefuse();
   surveillerLePartage();
   rendre();
+  suivreLesDonnees();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch((erreur) => {
@@ -163,6 +164,35 @@ function avertirSiStockageRefuse() {
     }),
   ]));
 }
+
+// Les vues où un redessin serait malvenu : on y est en train de faire quelque
+// chose, et le contenu d'une liste n'y est pas ce qu'on regarde.
+const VUES_EN_COURS = ['/photo/'];
+
+/**
+ * Redessine la vue courante quand la cave change sous elle.
+ *
+ * Les données arrivent après l'affichage : au démarrage, et à chaque fois que
+ * l'autre appareil modifie quelque chose. Sans cela, rejoindre une cave
+ * partagée laissait un écran vide jusqu'à ce qu'on change d'onglet, ce qui
+ * ressemblait à un échec alors que tout était arrivé.
+ *
+ * Un dialogue ouvert ou un parcours photo en cours suspend le redessin : on
+ * ne retire pas un formulaire des mains de quelqu'un qui le remplit.
+ */
+function suivreLesDonnees() {
+  let signature = empreinte();
+  store.abonner(() => {
+    const courante = empreinte();
+    if (courante === signature) return;
+    signature = courante;
+    if (document.querySelector('dialog[open]')) return;
+    if (VUES_EN_COURS.some((prefixe) => cheminCourant().startsWith(prefixe))) return;
+    rendre();
+  });
+}
+
+const empreinte = () => `${store.vins().length}:${store.degustations().length}:${store.donnees().majLe}`;
 
 // Ce que dit le bandeau selon la raison du non-partage. Une cave qui n'est
 // pas partagée n'est pas une panne, mais le dire évite de saisir une soirée

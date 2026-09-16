@@ -1,5 +1,9 @@
 // État de l'application : chargement, persistance et actions métier.
-// Les données vivent dans localStorage, le jeu initial vient de data/seed.json.
+//
+// Les données vivent dans localStorage, et rejoignent la cave partagée quand
+// un code d'accès est enregistré. Une installation neuve démarre sur une cave
+// vide : ce qui la remplit vient de la saisie, d'une sauvegarde restaurée, ou
+// du partage rejoint.
 
 import {
   EMPLACEMENTS, aujourdhui, entier, identifiant,
@@ -10,11 +14,10 @@ import * as synchro from './nuage.js';
 
 const CLE_DONNEES = 'cave-a-vin.donnees.v1';
 const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
-const CHEMIN_SEED = 'data/seed.json';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '18';
+export const VERSION_APP = '19';
 
 const etat = {
   vins: [],
@@ -119,14 +122,7 @@ function adopter(paquet) {
 export async function charger() {
   etat.preferences = { ...etat.preferences, ...(lireLocal(CLE_PREFERENCES) || {}) };
   const local = lireLocal(CLE_DONNEES);
-  if (local && Array.isArray(local.vins) && local.vins.length) {
-    adopter(local);
-  } else {
-    const reponse = await fetch(CHEMIN_SEED, { cache: 'no-cache' });
-    if (!reponse.ok) throw new Error(`Jeu de données initial illisible (${reponse.status})`);
-    adopter(await reponse.json());
-    enregistrer();
-  }
+  if (local && Array.isArray(local.vins)) adopter(local);
   etat.charge = true;
   notifier();
 
@@ -166,10 +162,9 @@ function appliquerDistant(cle, fiches) {
   notifier();
 }
 
-export async function reinitialiser() {
-  const reponse = await fetch(CHEMIN_SEED, { cache: 'no-cache' });
-  if (!reponse.ok) throw new Error(`Jeu de données initial illisible (${reponse.status})`);
-  adopter(await reponse.json());
+/** Vide la cave, ici et chez tous les appareils qui la partagent. */
+export async function vider() {
+  adopter({ vins: [], degustations: [] });
   await photos.vider().catch(() => {});
   enregistrer();
   await synchro.remplacerTout(etat).catch(() => {});

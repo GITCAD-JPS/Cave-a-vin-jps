@@ -93,29 +93,31 @@ export function rendre(conteneur, { naviguer }) {
       el('p', { class: 'discret', text: etat.majLe ? `Dernière modification : ${dateLisible(etat.majLe)}` : '' }),
     ]),
 
-    section('Données du classeur', [
+    section('Repartir de zéro', [
       el('p', {
         class: 'discret',
-        text: 'La cave a été initialisée à partir du classeur Excel. La remise à zéro '
-          + 'restaure exactement ce contenu et efface les photos prises depuis l’application.',
+        text: 'Efface tous les vins, toutes les dégustations et les photos prises '
+          + 'depuis l’application. Si la cave est partagée, elle se vide aussi '
+          + 'chez les autres appareils.',
       }),
       el('div', { class: 'rangee-boutons' }, [
-        bouton('Repartir du classeur', {
+        bouton('Vider la cave', {
           classe: 'bouton bouton-danger-discret',
           onclick: async () => {
             const accord = await confirmer(
-              'Repartir du classeur',
-              'Toutes les modifications faites dans l’application seront perdues.',
-              { libelleAction: 'Remettre à zéro', danger: true },
+              'Vider la cave',
+              'Tout le contenu sera effacé, sans possibilité de revenir en '
+                + 'arrière. Exportez une sauvegarde d’abord si vous hésitez.',
+              { libelleAction: 'Tout effacer', danger: true },
             );
             if (!accord) return;
             try {
-              await store.reinitialiser();
-              message('Cave réinitialisée');
+              await store.vider();
+              message('Cave vidée');
               naviguer('/cave');
             } catch (erreur) {
               console.error(erreur);
-              message('Réinitialisation impossible', 'erreur');
+              message('Effacement impossible', 'erreur');
             }
           },
         }),
