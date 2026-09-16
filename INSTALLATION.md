@@ -91,6 +91,12 @@ export const CONFIGURATION = {
 
 Puis **Commit changes**. Votre site se republie tout seul en une minute.
 
+**Vérifiez bien d'avoir remplacé les deux valeurs.** Le dépôt d'origine est
+livré avec celles de son auteur. Si vous y lisez encore `cave-a-vin-5a2b6`,
+c'est qu'elles n'ont pas été remplacées : votre cave irait alors se ranger
+dans la base de quelqu'un d'autre, sans que rien ne vous le signale, puisque
+les codes d'accès restent séparés.
+
 Ces deux valeurs sont publiques par nature : elles voyagent dans chaque page
 servie, et ce n'est pas elles qui protègent votre cave. La protection tient au
 code d'accès de l'étape suivante.
