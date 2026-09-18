@@ -19,6 +19,11 @@ const LANGUES = ['fra', 'ita'];
 // Même servis depuis le même site, cela peut échouer : ce délai garantit
 // qu'on rend la main plutôt que de laisser tourner indéfiniment.
 const DELAI_MAX = 45000;
+// Mesuré sur un lot de photos d'étiquettes prises comme on le fait vraiment :
+// au-delà, la lecture ne s'améliore pas, et se dégrade même. Le moteur
+// travaille sur une hauteur de ligne normalisée, lui donner plus de pixels ne
+// lui apprend rien de plus.
+const COTE_LECTURE = 1400;
 
 let chargement = null;
 let indisponible = false;
@@ -73,6 +78,39 @@ async function chargerLangue(code) {
  * `onProgres` reçoit une fraction entre 0 et 1.
  * Renvoie null si la lecture n'a pas pu se faire, sans jamais rester en plan.
  */
+/**
+ * Remet la photo dans un état que le moteur sait lire.
+ *
+ * Deux pièges propres aux téléphones, invisibles l'un comme l'autre : une
+ * photo prise verticalement porte son orientation dans ses métadonnées, et un
+ * iPhone livre parfois du HEIC, que le moteur ne décode pas. Dans les deux cas
+ * il ne rend rien, sans dire pourquoi. Repasser par le navigateur, qui sait
+ * décoder et redresser, écarte les deux, et lève franchement s'il ne peut pas.
+ *
+ * La taille est ramenée à `COTE_LECTURE`, mesuré comme le meilleur compromis :
+ * au-delà, la lecture ne s'améliore pas et se dégrade même.
+ */
+async function normaliser(image) {
+  if (!(image instanceof Blob)) return image;
+  const bitmap = await createImageBitmap(image, { imageOrientation: 'from-image' })
+    .catch(() => createImageBitmap(image))
+    .catch(() => null);
+  if (!bitmap) throw new Error('photo illisible par le navigateur');
+
+  const source = Math.max(bitmap.width, bitmap.height) || 1;
+  const facteur = Math.min(1, COTE_LECTURE / source);
+  const toile = document.createElement('canvas');
+  toile.width = Math.max(1, Math.round(bitmap.width * facteur));
+  toile.height = Math.max(1, Math.round(bitmap.height * facteur));
+  const contexte = toile.getContext('2d');
+  if (!contexte) return image;
+  contexte.drawImage(bitmap, 0, 0, toile.width, toile.height);
+  if (bitmap.close) bitmap.close();
+
+  const prete = await new Promise((r) => toile.toBlob(r, 'image/jpeg', 0.9));
+  return prete || image;
+}
+
 export async function lireEtiquette(image, { onProgres } = {}) {
   let ouvrier = null;
   let minuteur = null;
@@ -94,7 +132,7 @@ export async function lireEtiquette(image, { onProgres } = {}) {
         if (etat.status === 'recognizing text' && onProgres) onProgres(etat.progress);
       },
     });
-    const { data } = await ouvrier.recognize(image);
+    const { data } = await ouvrier.recognize(await normaliser(image));
     return { texte: data.text || '', confiance: data.confidence ?? 0 };
   };
 

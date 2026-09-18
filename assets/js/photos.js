@@ -175,8 +175,19 @@ export async function redimensionner(fichier, cote = COTE_MAX, qualite = QUALITE
   return blob || fichier;
 }
 
+/**
+ * Décode une image en la remettant à l'endroit.
+ *
+ * Une photo prise verticalement porte son orientation dans ses métadonnées
+ * plutôt que dans ses pixels, et les navigateurs ne s'accordent pas sur le
+ * fait de l'appliquer d'eux-mêmes. Le demander explicitement coûte un mot et
+ * évite une photo couchée, que le moteur de lecture ne déchiffrerait pas.
+ */
 function creerBitmap(fichier) {
-  if ('createImageBitmap' in globalThis) return createImageBitmap(fichier);
+  if ('createImageBitmap' in globalThis) {
+    return createImageBitmap(fichier, { imageOrientation: 'from-image' })
+      .catch(() => createImageBitmap(fichier));
+  }
   return new Promise((resoudre, rejeter) => {
     const image = new Image();
     const url = URL.createObjectURL(fichier);
