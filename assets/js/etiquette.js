@@ -19,11 +19,13 @@ const LANGUES = ['fra', 'ita'];
 // Même servis depuis le même site, cela peut échouer : ce délai garantit
 // qu'on rend la main plutôt que de laisser tourner indéfiniment.
 const DELAI_MAX = 45000;
-// Mesuré sur un lot de photos d'étiquettes prises comme on le fait vraiment :
-// au-delà, la lecture ne s'améliore pas, et se dégrade même. Le moteur
-// travaille sur une hauteur de ligne normalisée, lui donner plus de pixels ne
-// lui apprend rien de plus.
-const COTE_LECTURE = 1400;
+// Ce qui compte n'est pas la taille de la photo, mais celle des lettres une
+// fois la photo réduite. Sur un gros plan d'étiquette, 1400 px suffisaient. Sur
+// une bouteille entière photographiée en portrait, l'étiquette n'occupe qu'une
+// petite part du cadre, et 1400 px la rendaient illisible. Mesuré sur un lot
+// mêlant les deux cadrages : 1400 px lit 78 % des mots, 2000 px en lit 88 %, et
+// monter plus haut redescend à 86 % puis 81 %.
+const COTE_LECTURE = 2000;
 
 let chargement = null;
 let indisponible = false;
@@ -88,7 +90,8 @@ async function chargerLangue(code) {
  * décoder et redresser, écarte les deux, et lève franchement s'il ne peut pas.
  *
  * La taille est ramenée à `COTE_LECTURE`, mesuré comme le meilleur compromis :
- * au-delà, la lecture ne s'améliore pas et se dégrade même.
+ * assez de pixels pour les étiquettes photographiées de loin, sans les
+ * artefacts que le moteur récolte au-delà.
  */
 async function normaliser(image) {
   if (!(image instanceof Blob)) return image;

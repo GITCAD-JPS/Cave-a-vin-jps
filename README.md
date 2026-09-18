@@ -105,17 +105,30 @@ Le moteur n'est pas préchargé : la plupart des consultations ne lisent aucune
 étiquette. Il est chargé à la première lecture, puis gardé en cache par le
 service worker, y compris pour l'usage hors ligne.
 
-Ce que donne la lecture, mesuré sur des étiquettes de cette cave :
+La lecture porte sur la photo telle que l'appareil l'a rendue, et non sur la
+copie réduite gardée dans la cave. Elle est ramenée à 2000 px de côté, mesuré
+comme le meilleur compromis sur un lot de photos prises comme on le fait
+vraiment. Ce qui compte n'est pas la taille de la photo mais celle des lettres
+une fois la photo réduite, et c'est pourquoi le cadrage pèse bien plus lourd
+que le téléphone.
 
-| Qualité de la photo | Résultat |
+Mots correctement lus sur un lot de neuf photos, gros plans et bouteilles
+entières mêlés :
+
+| Cadrage | Résultat |
 | --- | --- |
-| Étiquette nette et cadrée | Texte exact, millésime, degré et volume repris tels quels |
-| Photo de biais, contrastée | Quelques lettres fautives, le bon vin ressort quand même en tête |
+| Étiquette cadrée de près, de face et éclairée | Tout le texte, millésime, degré et volume repris tels quels |
+| Étiquette de biais ou dans l'ombre | Quelques lettres fautives, le bon vin ressort quand même en tête |
+| Bouteille entière prise à un mètre | Deux tiers du texte, assez pour reconnaître le vin, pas toujours pour le millésime |
 | Vignette de moins de 300 px | Inexploitable |
 
 Autrement dit : une photo prise de près avec un téléphone fonctionne, une
-vignette récupérée ailleurs non. Quand la lecture échoue, le parcours continue
-sans elle : la photo est conservée et la recherche manuelle prend le relais.
+bouteille entière photographiée de loin bien moins, une vignette récupérée
+ailleurs pas du tout. L'écran de prise de vue le rappelle avant le
+déclenchement.
+
+Quand la lecture échoue, le parcours continue sans elle : la photo est
+conservée et la recherche manuelle prend le relais.
 Un délai maximum garantit que la main est rendue, et un bouton permet de
 renoncer sans attendre.
 

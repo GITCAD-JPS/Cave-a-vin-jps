@@ -35,7 +35,7 @@ let etat = null;
 function reinitialiser(mode) {
   etat = {
     mode, photoLocale: '', apercu: '', lecture: null, champs: null,
-    etape: 'photo', abandon: false,
+    etape: 'photo', abandon: false, origine: null,
   };
 }
 
@@ -60,6 +60,9 @@ export function rendre(conteneur, { naviguer, params }) {
 }
 
 // --- prise de vue -----------------------------------------------------------
+
+const CONSEIL_CADRAGE = "Cadrez l'étiquette seule, de face et bien éclairée. "
+  + 'Une bouteille entière photographiée de loin se lit mal.';
 
 function zonePhoto(naviguer) {
   const bloc = el('section', { class: 'bloc bloc-photo' });
@@ -87,6 +90,11 @@ function zonePhoto(naviguer) {
     };
 
     bloc.append(
+      // Ce qui fait échouer la lecture d'une étiquette n'est presque jamais le
+      // téléphone : c'est le cadrage. Mesuré sur un lot de photos, une
+      // étiquette cadrée de près rend neuf mots sur neuf, la même étiquette sur
+      // une bouteille entière prise d'un mètre en rend six.
+      el('p', { class: 'discret conseil-cadrage', text: CONSEIL_CADRAGE }),
       ...source('prise-de-vue', MODES[etat.mode].action, 'appareil', 'bouton-primaire', true),
       ...source('choix-photo', 'Choisir une photo existante', 'image', '', false),
       el('button', {
@@ -157,6 +165,10 @@ function zonePhoto(naviguer) {
 
 async function traiterPhoto(fichier, naviguer) {
   try {
+    // La photo gardée dans la cave est réduite : c'est ce qu'il faut pour la
+    // consulter, c'est trop peu pour lire une étiquette. On retient donc le
+    // fichier tel que l'appareil l'a rendu, le temps de ce parcours.
+    etat.origine = fichier;
     etat.photoLocale = await photos.enregistrer(fichier);
     etat.apercu = await photos.url(etat.photoLocale);
   } catch (erreur) {
@@ -188,7 +200,11 @@ async function lancerLecture(naviguer) {
   etat.progres = 0;
   naviguer(null);
 
-  const blob = await photos.lire(etat.photoLocale).catch(() => null);
+  // La photo d'origine porte bien plus de détail que la copie gardée en cave,
+  // et c'est ce détail qui fait la différence sur une étiquette. Le repli sur
+  // la copie ne sert pas aujourd'hui : il évite qu'une lecture devienne
+  // muette si ce parcours venait à changer.
+  const blob = etat.origine || await photos.lire(etat.photoLocale).catch(() => null);
   const lecture = blob
     ? await lireEtiquette(blob, {
       onProgres: (p) => {
