@@ -280,6 +280,20 @@ function surveiller() {
   }, PERIODE);
 }
 
+/**
+ * Relit toute la cave partagée, sur demande.
+ *
+ * Le sondage ne relit que lorsque le témoin a changé, ce qui est exactement
+ * ce qu'il faut d'ordinaire. Mais si un appareil se retrouve pour une raison
+ * quelconque avec une copie en retard, plus rien ne l'en sort tant que
+ * personne ne touche à la cave. Ce bouton-là en sort.
+ */
+export async function recharger() {
+  if (!code) throw new Error('aucune cave partagée sur cet appareil');
+  await rapatrier();
+  changerEtat('connecte');
+}
+
 export function arreter() {
   clearInterval(minuteur);
   minuteur = null;

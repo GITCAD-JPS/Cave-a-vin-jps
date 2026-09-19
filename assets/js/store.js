@@ -17,7 +17,7 @@ const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '30';
+export const VERSION_APP = '31';
 
 const etat = {
   vins: [],
@@ -44,6 +44,8 @@ function notifier() {
 
 export const donnees = () => etat;
 export const etatSynchro = () => synchro.etat();
+/** Redemande la cave partagée entière, sans attendre le prochain sondage. */
+export const rechargerDuPartage = () => synchro.recharger();
 /** Le partage est-il réellement branché, quel que soit son état du moment ? */
 export const partageBranche = () => synchro.synchroActive();
 /** Cette version sait-elle joindre une cave partagée ? */

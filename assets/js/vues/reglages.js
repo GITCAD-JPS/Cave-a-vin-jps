@@ -1,6 +1,6 @@
 // Réglages : apparence, sauvegardes et remise à zéro.
 
-import { bouton, confirmer, el, message, selection, vider } from '../dom.js';
+import { bouton, confirmer, el, message, pluriel, selection, vider } from '../dom.js';
 import { section } from '../composants.js';
 import * as exporter from '../export.js';
 import * as store from '../store.js';
@@ -64,7 +64,7 @@ export function rendre(conteneur, { naviguer }) {
       ]),
     ])),
 
-    section('Cave partagée', [etatSynchronisation(), reglageDuCode()]),
+    section('Cave partagée', [etatSynchronisation(naviguer), reglageDuCode()]),
 
     section('Lecture des étiquettes', reglageLecture(naviguer)),
 
@@ -186,13 +186,6 @@ async function remettre(action, reussite) {
   }
 }
 
-const AUTORISATIONS = {
-  granted: 'accordée',
-  prompt: 'jamais demandée',
-  denied: 'refusée',
-  unavailable: 'indisponible',
-};
-
 const ETATS_SYNCHRO = {
   recherche: {
     titre: 'Vérification…',
@@ -222,13 +215,13 @@ const ETATS_SYNCHRO = {
   },
 };
 
-function etatSynchronisation() {
+function etatSynchronisation(naviguer) {
   const etat = store.etatSynchro();
   const { titre, texte } = ETATS_SYNCHRO[etat] || ETATS_SYNCHRO.local;
   return el('div', { class: 'synchro' }, [
     el('span', { class: `pastille-synchro ${etat}`, text: titre }),
     el('p', { class: 'discret', text: texte }),
-    diagnostic(),
+    diagnostic(naviguer),
   ]);
 }
 
@@ -474,35 +467,53 @@ function codeEnPlace(actuel) {
  * dans « À propos » sans rien déplier : c'est la première chose qu'on
  * vérifie, elle n'a rien à faire derrière un triangle.
  */
-function diagnostic() {
-  const valeurs = {};
-  const ligne = (libelle, cle) => {
-    valeurs[cle] = el('dd', { text: '…' });
-    return [el('dt', { text: libelle }), valeurs[cle]];
-  };
+/**
+ * Ce que cet appareil contient, et de quoi le remettre d'aplomb.
+ *
+ * Le sondage ne relit la cave que lorsque le témoin a changé, ce qui épargne
+ * le réseau. Mais un appareil resté en retard pour une raison quelconque n'en
+ * sort plus tant que personne ne touche à rien, et rien ne le dit. Compter ce
+ * qu'il a sous la main et pouvoir tout redemander évite d'en être réduit aux
+ * suppositions.
+ */
+function diagnostic(naviguer) {
+  const vins = store.vins().length;
+  const degustations = store.degustations().length;
+  const maj = store.donnees().majLe;
 
-  const bloc = el('details', { class: 'diagnostic' }, [
+  const recharger = bouton('Recharger depuis le partage', {
+    classe: 'bouton',
+    onclick: async () => {
+      recharger.disabled = true;
+      recharger.textContent = 'Relecture…';
+      try {
+        await store.rechargerDuPartage();
+        message(`Cave relue : ${pluriel(store.vins().length, 'vin', 'vins')}`);
+        naviguer(null);
+      } catch (erreur) {
+        console.info('Relecture impossible', erreur);
+        message(`Relecture impossible : ${erreur?.message || 'cave injoignable'}`, 'erreur');
+        recharger.disabled = false;
+        recharger.textContent = 'Recharger depuis le partage';
+      }
+    },
+  });
+
+  return el('details', { class: 'diagnostic' }, [
     el('summary', { text: 'Détails techniques' }),
     el('dl', { class: 'definitions' }, [
-      ...ligne('Pont de la plateforme', 'pont'),
-      ...ligne('Autorisation des données', 'autorisation'),
-      ...ligne('Espace partagé', 'espace'),
+      el('dt', { text: 'Sur cet appareil' }),
+      el('dd', { text: `${pluriel(vins, 'vin', 'vins')}, ${pluriel(degustations, 'dégustation', 'dégustations')}` }),
+      el('dt', { text: 'Dernière modification connue' }),
+      el('dd', { text: maj ? new Date(maj).toLocaleString('fr-CH') : 'aucune' }),
     ]),
+    el('p', {
+      class: 'discret',
+      text: 'Si un appareil affiche moins de fiches qu’un autre, cette relecture '
+        + 'redemande la cave entière au partage.',
+    }),
+    store.partageBranche() ? recharger : null,
   ]);
-
-  const use = globalThis.claude?.use;
-  valeurs.pont.textContent = typeof use === 'function' ? 'présent' : 'absent';
-  valeurs.espace.textContent = store.partageBranche() ? 'ouvert' : 'fermé';
-
-  if (typeof use !== 'function') {
-    valeurs.autorisation.textContent = 'sans objet';
-    return bloc;
-  }
-  Promise.resolve(use('permissions'))
-    .then((permissions) => permissions?.state('db'))
-    .then((etat) => { valeurs.autorisation.textContent = AUTORISATIONS[etat] || 'inconnue'; })
-    .catch(() => { valeurs.autorisation.textContent = 'illisible'; });
-  return bloc;
 }
 
 function dateLisible(iso) {
