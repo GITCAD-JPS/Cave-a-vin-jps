@@ -1240,6 +1240,16 @@ select {
   color: var(--texte);
 }
 
+/* La marche à suivre pour obtenir la clé de lecture, dépliée à la demande. */
+.liste-etapes {
+  margin: 0.6rem 0;
+  padding-left: 1.2rem;
+  color: var(--texte-doux);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.liste-etapes li { margin-bottom: 0.35rem; }
+
 .bandeau-lien {
   display: inline-block;
   margin-left: 0.4rem;

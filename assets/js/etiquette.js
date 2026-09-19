@@ -11,6 +11,7 @@
 // même, sans préremplissage.
 
 import { sansAccent } from './model.js';
+import { lireParGoogle } from './vision.js';
 
 const DOSSIER = 'assets/vendor/tesseract';
 const SOURCE_TESSERACT = `${DOSSIER}/tesseract.min.js`;
@@ -38,10 +39,19 @@ const DECOUPAGE_BLOC = '6';
 
 let chargement = null;
 let indisponible = false;
+let derniereRaison = '';
 const languesChargees = new Map();
 
 /** La lecture a-t-elle déjà échoué au point de ne plus valoir la peine ? */
 export const lectureIndisponible = () => indisponible;
+
+/**
+ * Pourquoi la lecture améliorée n'a pas servi la dernière fois.
+ *
+ * Un repli silencieux laisserait croire que la clé fonctionne alors qu'elle
+ * est refusée. Le parcours photo s'en sert pour le dire une fois.
+ */
+export const raisonDuRepli = () => derniereRaison;
 
 function chargerMoteur() {
   if (chargement) return chargement;
@@ -130,9 +140,27 @@ async function normaliser(image) {
   return prete || image;
 }
 
-export async function lireEtiquette(images, { onProgres } = {}) {
+export async function lireEtiquette(images, { onProgres, cleVision = '' } = {}) {
   const photos = (Array.isArray(images) ? images : [images]).filter(Boolean);
   if (!photos.length) return null;
+
+  // Quand une clé a été déposée, on demande d'abord au service de Google, seul
+  // capable de lire un nom écrit en arc de cercle. Tout ce qui peut échouer
+  // ailleurs — réseau coupé, clé expirée, quota atteint — retombe sur le
+  // moteur embarqué, qui lui ne dépend de rien.
+  if (cleVision) {
+    if (onProgres) onProgres(0.35);
+    try {
+      const lecture = await lireParGoogle(photos, cleVision);
+      if (onProgres) onProgres(1);
+      return { ...lecture, parGoogle: true };
+    } catch (erreur) {
+      console.info('Lecture par Google impossible, repli sur le moteur embarqué', erreur);
+      derniereRaison = erreur?.message || '';
+      if (onProgres) onProgres(0);
+    }
+  }
+
   let ouvrier = null;
   let minuteur = null;
 
@@ -167,7 +195,7 @@ export async function lireEtiquette(images, { onProgres } = {}) {
       confiance = Math.max(confiance, data.confidence ?? 0);
       lues += 1;
     }
-    return { texte: morceaux.join('\n'), confiance };
+    return { texte: morceaux.join('\n'), confiance, parGoogle: false };
   };
 
   const delai = new Promise((_, rejeter) => {
@@ -227,13 +255,47 @@ const BRUIT = new Set(['vino', 'vin', 'wine', 'rosso', 'bianco', 'rouge', 'blanc
   'imbottigliato', 'mis', 'bouteille', 'contient', 'sulfites', 'contains', 'vol',
   'product', 'of', 'des', 'les', 'del', 'della', 'di', 'da', 'the', 'and', 'et']);
 
+// Mentions imposées et phrases de description. Elles portent souvent le nom
+// du domaine — « mis en bouteille au domaine par Gérard Bertrand » — et
+// gagnaient donc contre le vrai nom, plus court. Ce sont des tournures, pas
+// des mots isolés : c'est la tournure entière qui disqualifie la ligne.
+const MENTIONS = [
+  /mis\s+en\s+bouteille/i, /imbottigliato/i, /bottled\s+(by|at)/i,
+  /appellation/i, /origine\s+(prot|contr)/i, /denominazione/i,
+  /produit\s+de/i, /product\s+of/i, /prodotto/i,
+  /contient/i, /contains/i, /sulfit/i, /solfit/i, /sulphit/i,
+  /agricultur/i, /biolog/i, /demeter/i,
+  /est\s+situ/i, /is\s+located/i, /se\s+servir/i, /can\s+be\s+served/i,
+  /%\s*vol/i, /\b\d{2,4}\s*(ml|cl)\b/i,
+];
+
+// Un nom de domaine coupé en deux par la mise en page : « DOMAINE » puis
+// « DE VILLEMAJOU ». La seconde ligne commence par une particule et ne se
+// tient pas debout toute seule.
+const PARTICULE = /^(de|du|des|d'|d’|la|le|les|dei|della|di)\s/i;
+
 /** Lignes du texte assez substantielles pour servir de nom ou de producteur. */
 function lignesCandidates(texte) {
-  return texte
+  const brutes = texte
     .split(/\r?\n/)
     .map((ligne) => ligne.replace(/[^\p{L}\p{N}'’&.\- ]/gu, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  // Recoller les suites avant de trier : « DE VILLEMAJOU » seul ne dit rien.
+  const recollees = [];
+  for (const ligne of brutes) {
+    const precedente = recollees[recollees.length - 1];
+    if (precedente && PARTICULE.test(ligne) && `${precedente} ${ligne}`.length <= 60) {
+      recollees[recollees.length - 1] = `${precedente} ${ligne}`;
+    } else {
+      recollees.push(ligne);
+    }
+  }
+
+  return recollees
     .filter((ligne) => {
       if (ligne.length < 4 || ligne.length > 60) return false;
+      if (MENTIONS.some((motif) => motif.test(ligne))) return false;
       const mots = ligne.split(' ').filter((m) => m.length > 2);
       if (!mots.length) return false;
       return mots.some((m) => !BRUIT.has(sansAccent(m)));
@@ -290,12 +352,35 @@ export function rapprocher(texte, candidats, { millesime = null, minimum = 0.2 }
 }
 
 /** Nom le plus plausible parmi les lignes lues, une fois le bruit écarté. */
+/**
+ * La ligne qui a le plus de chances d'être le nom du vin.
+ *
+ * Le nom est écrit en grand sur le haut de la face avant, donc tôt dans le
+ * texte lu, et il tient en quelques mots. Compter les majuscules et la
+ * longueur faisait au contraire gagner les mentions légales, plus bavardes.
+ */
+// « Domaine », « Château », « Tenuta » ne distinguent aucun vin d'un autre, et
+// sont donc ignorés au moment de rapprocher. Mais une ligne qui commence par
+// l'un d'eux est presque toujours le nom du vin, et c'est ce qu'on cherche ici.
+const MARQUEURS_NOM = /^(domaine|chateau|château|clos|mas|maison|cave|caves|casa|cascina|tenuta|castello|azienda|cantina|bodega|weingut|quinta|finca|podere|villa|abbaye|manoir)\b/i;
+
 export function nomProbable(lignes = []) {
-  const notees = lignes.map((ligne) => {
+  const notees = lignes.map((ligne, rang) => {
     const mots = ligne.split(' ');
     const utiles = mots.filter((m) => m.length > 3 && !MOTS_IGNORES.has(sansAccent(m)));
-    const majuscules = mots.filter((m) => m === m.toUpperCase() && /\p{L}/u.test(m)).length;
-    return { ligne, score: utiles.length * 2 + majuscules + Math.min(ligne.length, 30) / 30 };
+    const capitales = mots.filter((m) => m === m.toUpperCase() && /\p{L}/u.test(m)).length;
+    return {
+      ligne,
+      score: utiles.length * 2
+        // Une ligne toute en capitales est un titre, une ligne à moitié en
+        // capitales est une phrase qui en contient.
+        + (mots.length && capitales === mots.length ? 2 : 0)
+        // Ce qui est lu en premier vient du haut de la face avant.
+        + Math.max(0, 3 - rang * 0.5)
+        + (MARQUEURS_NOM.test(ligne) ? 3 : 0)
+        // Passé quelques mots, on n'est plus devant un nom.
+        - Math.max(0, mots.length - 5) * 1.5,
+    };
   });
   notees.sort((a, b) => b.score - a.score);
   return notees[0]?.ligne || '';

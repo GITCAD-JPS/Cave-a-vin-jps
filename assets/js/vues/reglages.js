@@ -65,6 +65,8 @@ export function rendre(conteneur, { naviguer }) {
 
     section('Cave partagée', [etatSynchronisation(), reglageDuCode()]),
 
+    section('Lecture des étiquettes', reglageLecture(naviguer)),
+
     section('Sauvegarde', [
       el('p', {
         class: 'discret',
@@ -236,6 +238,88 @@ function etatSynchronisation() {
  * qui le portent voient la même cave. Il s'affiche en clair une fois posé, car
  * il faut pouvoir le recopier sur le deuxième téléphone.
  */
+/**
+ * Lecture améliorée des étiquettes.
+ *
+ * Le moteur embarqué ne sait chercher que des lignes droites, et beaucoup
+ * d'étiquettes portent le nom du domaine en arc de cercle sur un verre bombé.
+ * Le service de Google sait les redresser. Cela suppose d'envoyer la photo,
+ * donc rien n'est activé sans une clé déposée ici, et le choix est dit en
+ * clair plutôt que caché derrière un interrupteur.
+ */
+function reglageLecture(naviguer) {
+  const saisie = el('input', {
+    type: 'password', class: 'code-partage', placeholder: 'Clé Google',
+    autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false',
+    'aria-label': 'Clé du service de lecture Google',
+    value: store.preferences().cleVision || '',
+  });
+
+  const enregistrer = () => {
+    const valeur = saisie.value.trim();
+    store.enregistrerPreferences({ cleVision: valeur });
+    message(valeur ? 'Lecture améliorée activée' : 'Lecture améliorée désactivée');
+    naviguer(null);
+  };
+
+  const active = Boolean(store.preferences().cleVision);
+  const morceaux = [
+    el('p', {
+      class: 'discret',
+      text: active
+        ? 'Les photos d’étiquette sont envoyées à Google, qui les lit, puis le '
+          + 'résultat revient. Si le service refuse ou que le réseau manque, le '
+          + 'moteur embarqué prend le relais tout seul.'
+        : 'Les étiquettes sont lues dans l’appareil, sans rien envoyer. Ce moteur '
+          + 'ne sait lire que du texte droit : le nom d’un domaine écrit en arc de '
+          + 'cercle lui échappe presque toujours.',
+    }),
+  ];
+
+  if (!active) {
+    morceaux.push(el('p', {
+      class: 'discret',
+      text: 'Le service de Google sait redresser un texte courbé. Il est gratuit '
+        + 'jusqu’à mille photos par mois, largement plus qu’une cave n’en demande. '
+        + 'Pour l’activer, collez ci-dessous une clé créée dans votre console Google.',
+    }));
+  }
+
+  morceaux.push(
+    el('div', { class: 'rangee-boutons' }, [
+      saisie,
+      bouton(active ? 'Remplacer la clé' : 'Activer', {
+        classe: 'bouton bouton-primaire', onclick: enregistrer,
+      }),
+      active
+        ? bouton('Retirer la clé', {
+          classe: 'bouton bouton-danger-discret',
+          onclick: () => { saisie.value = ''; enregistrer(); },
+        })
+        : null,
+    ]),
+    el('details', { class: 'details-techniques' }, [
+      el('summary', { text: 'Comment obtenir la clé' }),
+      el('ol', { class: 'liste-etapes' }, [
+        el('li', { text: 'Ouvrez console.cloud.google.com et choisissez votre projet' }),
+        el('li', { text: 'Dans « API et services », activez « Cloud Vision API »' }),
+        el('li', { text: 'Dans « Identifiants », créez une clé API' }),
+        el('li', {
+          text: 'Restreignez cette clé au site gitcad-jps.github.io et à la seule '
+            + 'Cloud Vision API, sans quoi n’importe qui pourrait s’en servir à vos frais',
+        }),
+        el('li', { text: 'Copiez la clé et collez-la ci-dessus' }),
+      ]),
+      el('p', {
+        class: 'discret',
+        text: 'La clé reste dans cet appareil. Elle n’est jamais publiée dans la cave '
+          + 'partagée, il faut donc la coller sur chaque téléphone qui doit en profiter.',
+      }),
+    ]),
+  );
+  return morceaux;
+}
+
 function reglageDuCode() {
   if (!store.partageConfigure()) {
     return el('p', {

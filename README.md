@@ -135,6 +135,8 @@ bouteille entière photographiée de loin bien moins, une vignette récupérée
 ailleurs pas du tout. L'écran de prise de vue le rappelle avant le
 déclenchement.
 
+### Lecture améliorée
+
 Il reste une limite que le réglage ne franchit pas. Le moteur cherche des
 lignes droites, et beaucoup d'étiquettes portent le nom du domaine en arc de
 cercle sur un verre bombé. Sur ces noms-là, la lecture échoue même découpée à
@@ -143,6 +145,25 @@ gain : le contraste automatique, la netteté, le redressement automatique, le
 zoom guidé par une première lecture, les réductions dites de qualité du
 navigateur, et l'italien ajouté au français. Le rapprochement avec la cave
 reste fiable, lui, car il n'a besoin que de quelques mots justes.
+
+Pour franchir cette limite, les réglages proposent d'envoyer les photos au
+service de vision de Google, qui sait redresser un texte courbé avant de le
+lire. Rien n'est activé tant qu'une clé n'a pas été collée dans les réglages,
+et cette clé reste dans l'appareil : elle n'est ni dans le dépôt, ni dans la
+cave partagée. Le moteur embarqué reste en place et prend le relais tout seul
+dès que le service refuse ou que le réseau manque, et le motif du refus est
+annoncé plutôt que tu.
+
+La marche à suivre est dépliable dans les réglages. Elle demande d'activer
+Cloud Vision API sur le projet Google, d'y créer une clé et de la restreindre
+au site et à cette seule API, faute de quoi n'importe qui pourrait s'en servir
+aux frais du propriétaire du projet. Le service est gratuit jusqu'à mille
+photos par mois.
+
+Le code d'appel a été éprouvé de bout en bout contre un service simulé, pour
+la requête envoyée comme pour le repli sur refus. La forme d'une réponse
+réussie suit la documentation de Google et n'a pas pu être observée en vrai
+depuis l'atelier, faute de clé.
 
 Quand la lecture échoue, le parcours continue sans elle : la photo est
 conservée et la recherche manuelle prend le relais.

@@ -17,12 +17,16 @@ const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '26';
+export const VERSION_APP = '27';
 
 const etat = {
   vins: [],
   degustations: [],
-  preferences: { theme: 'auto', affichage: 'grille', lectureAuto: false },
+  // `cleVision` reste dans cet appareil et n'est jamais publiée dans la cave
+  // partagée : c'est une clé facturable, pas une donnée de cave.
+  preferences: {
+    theme: 'auto', affichage: 'grille', lectureAuto: false, cleVision: '',
+  },
   charge: false,
   majLe: '',
 };

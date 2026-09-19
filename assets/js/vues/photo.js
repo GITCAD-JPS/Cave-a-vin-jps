@@ -8,7 +8,7 @@
 import { bouton, dialogue, el, icone, message, pluriel, vider } from '../dom.js';
 import { sousTitre, vignette } from '../composants.js';
 import {
-  extraireChamps, lectureIndisponible, lireEtiquette, nomProbable, rapprocher,
+  extraireChamps, lectureIndisponible, lireEtiquette, nomProbable, raisonDuRepli, rapprocher,
 } from '../etiquette.js';
 import { dialogueAjouterBouteilles, dialogueBoire, formulaireVin } from '../formulaires.js';
 import { filtrerVins } from '../model.js';
@@ -271,8 +271,10 @@ async function lancerLecture(naviguer) {
       || await photos.lire(etat[face].cle).catch(() => null);
     if (blob) blobs.push(blob);
   }
+  const cleVision = store.preferences().cleVision || '';
   const lecture = blobs.length
     ? await lireEtiquette(blobs, {
+      cleVision,
       onProgres: (p) => {
         etat.progres = p;
         const barre = document.querySelector('.progression-valeur');
@@ -285,8 +287,13 @@ async function lancerLecture(naviguer) {
   if (etat.abandon) return;
 
   if (lecture) {
-    // Le moteur a répondu : les prochaines photos seront lues sans demander.
-    if (!store.preferences().lectureAuto) {
+    // Un repli silencieux laisserait croire que la lecture améliorée
+    // fonctionne alors qu'elle est refusée. On le dit, une fois.
+    if (cleVision && !lecture.parGoogle) {
+      const raison = raisonDuRepli();
+      message(`Lecture améliorée indisponible${raison ? ` : ${raison}` : ''}`, 'erreur');
+    } else if (!store.preferences().lectureAuto) {
+      // Le moteur a répondu : les prochaines photos seront lues sans demander.
       store.enregistrerPreferences({ lectureAuto: true });
       message('Étiquette lue. Les prochaines photos le seront automatiquement.');
     }
