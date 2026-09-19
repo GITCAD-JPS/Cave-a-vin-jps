@@ -327,9 +327,12 @@ function reglageLecture(naviguer) {
           + 'choisissez « Sites web » et ajoutez gitcad-jps.github.io/*, puis sous '
           + '« Restrictions relatives aux API » ne laissez que Cloud Vision API. '
           + 'Sans cela, qui trouve la clé peut s’en servir à vos frais.'),
-        etape('Plafonnez le quota', 'Ouvrir les quotas', `${CONSOLE}/apis/api/vision.googleapis.com/quotas${PROJET}`,
-          'Facultatif mais rassurant : ramenez la limite mensuelle à 1000 requêtes, '
-          + 'le maximum gratuit. Au-delà le service refuse au lieu de facturer.'),
+        etape('Posez une alerte de budget', 'Ouvrir les budgets', `${CONSOLE}/billing/budgets${PROJET}`,
+          'Facultatif mais rassurant. Cloud Vision n’a pas de plafond mensuel, ses '
+          + 'quotas sont des limites par minute. Un budget de 1 franc avec alerte par '
+          + 'courriel prévient donc au premier centime réellement facturé. Les mille '
+          + 'premières photos du mois sont gratuites, puis environ 1,20 franc les mille '
+          + 'suivantes.'),
         el('li', { text: 'Collez la clé dans le champ ci-dessus' }),
       ]),
       el('p', {

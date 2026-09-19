@@ -157,9 +157,10 @@ annoncé plutôt que tu.
 La marche à suivre est dépliable dans les réglages, chaque étape portant le
 lien qui ouvre la bonne page de la console Google avec le projet déjà
 sélectionné : activer Cloud Vision API, créer une clé, la restreindre au site
-et à cette seule API, et plafonner le quota mensuel. La restriction n'est pas
+et à cette seule API, et poser une alerte de budget. La restriction n'est pas
 un détail, faute de quoi n'importe qui pourrait se servir de la clé aux frais
-du propriétaire du projet. Le service est gratuit jusqu'à mille photos par
+du propriétaire du projet. C'est elle qui protège, et non un plafond : Cloud
+Vision n'expose que des quotas par minute, aucune limite mensuelle. Le service est gratuit jusqu'à mille photos par
 mois, mais Google exige une carte bancaire sur le projet pour l'ouvrir, ce que
 les réglages disent sans qu'il faille déplier quoi que ce soit.
 
