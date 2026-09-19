@@ -182,14 +182,31 @@ const VUES_EN_COURS = ['/photo/'];
  */
 function suivreLesDonnees() {
   let signature = empreinte();
-  store.abonner(() => {
+  // Un changement survenu pendant qu'une modale était ouverte était marqué
+  // comme vu sans avoir été dessiné : l'écran gardait l'ancien contenu, et
+  // aucune notification suivante ne le rattrapait puisque l'empreinte
+  // concordait déjà. La marque n'est désormais posée qu'après le dessin, et
+  // ce qui a été différé est repris dès que la modale se ferme.
+  let differe = false;
+
+  const libre = () => !document.querySelector('dialog[open]')
+    && !VUES_EN_COURS.some((prefixe) => cheminCourant().startsWith(prefixe));
+
+  const rafraichir = () => {
     const courante = empreinte();
-    if (courante === signature) return;
+    if (courante === signature && !differe) return;
+    if (!libre()) {
+      differe = true;
+      return;
+    }
     signature = courante;
-    if (document.querySelector('dialog[open]')) return;
-    if (VUES_EN_COURS.some((prefixe) => cheminCourant().startsWith(prefixe))) return;
+    differe = false;
     rendre();
-  });
+  };
+
+  store.abonner(rafraichir);
+  // Une modale ne fait pas remonter sa fermeture : on l'attrape à la descente.
+  document.addEventListener('close', rafraichir, true);
 }
 
 const empreinte = () => `${store.vins().length}:${store.degustations().length}:${store.donnees().majLe}`;

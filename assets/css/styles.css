@@ -803,12 +803,22 @@ select {
 }
 .groupe legend { padding: 0 0.35rem; color: var(--texte-doux); font-size: 0.78rem; font-weight: 700; }
 
+/* Un formulaire de vin dépasse 2000 pixels sur un téléphone, qui n'en montre
+   que 700 : le bouton d'enregistrement se retrouvait à plus d'un millier de
+   pixels sous le bord, et passait pour absent. Il reste désormais collé au bas
+   de la fenêtre, quelle que soit la longueur du formulaire. */
 .formulaire-actions {
+  position: sticky;
+  bottom: calc(-1rem - 1px);
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
-  padding-top: 0.35rem;
+  margin: 0 -1rem -1rem;
+  padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--bordure);
+  background: var(--fond-carte);
 }
 
 .photo-choix { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; }
