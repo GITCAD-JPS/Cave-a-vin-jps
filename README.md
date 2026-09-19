@@ -154,11 +154,14 @@ cave partagée. Le moteur embarqué reste en place et prend le relais tout seul
 dès que le service refuse ou que le réseau manque, et le motif du refus est
 annoncé plutôt que tu.
 
-La marche à suivre est dépliable dans les réglages. Elle demande d'activer
-Cloud Vision API sur le projet Google, d'y créer une clé et de la restreindre
-au site et à cette seule API, faute de quoi n'importe qui pourrait s'en servir
-aux frais du propriétaire du projet. Le service est gratuit jusqu'à mille
-photos par mois.
+La marche à suivre est dépliable dans les réglages, chaque étape portant le
+lien qui ouvre la bonne page de la console Google avec le projet déjà
+sélectionné : activer Cloud Vision API, créer une clé, la restreindre au site
+et à cette seule API, et plafonner le quota mensuel. La restriction n'est pas
+un détail, faute de quoi n'importe qui pourrait se servir de la clé aux frais
+du propriétaire du projet. Le service est gratuit jusqu'à mille photos par
+mois, mais Google exige une carte bancaire sur le projet pour l'ouvrir, ce que
+les réglages disent sans qu'il faille déplier quoi que ce soit.
 
 Le code d'appel a été éprouvé de bout en bout contre un service simulé, pour
 la requête envoyée comme pour le repli sur refus. La forme d'une réponse

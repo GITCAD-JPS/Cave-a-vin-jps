@@ -5,6 +5,7 @@ import { section } from '../composants.js';
 import * as exporter from '../export.js';
 import * as store from '../store.js';
 import { appliquerTheme } from '../theme.js';
+import { CONFIGURATION } from '../nuage-configuration.js';
 
 const THEMES = [
   { valeur: 'auto', libelle: 'Suivre le système' },
@@ -247,6 +248,20 @@ function etatSynchronisation() {
  * donc rien n'est activé sans une clé déposée ici, et le choix est dit en
  * clair plutôt que caché derrière un interrupteur.
  */
+const CONSOLE = 'https://console.cloud.google.com';
+// Le projet est déjà dans l'adresse : sans cela la console ouvre le dernier
+// projet consulté, qui n'est pas forcément celui de la cave.
+const PROJET = CONFIGURATION.projet ? `?project=${encodeURIComponent(CONFIGURATION.projet)}` : '';
+
+/** Une étape de la marche à suivre, avec le lien qui ouvre la bonne page. */
+function etape(titre, libelleLien, adresse, explication) {
+  return el('li', {}, [
+    el('strong', { text: titre }),
+    el('span', { text: ` ${explication} ` }),
+    el('a', { href: adresse, target: '_blank', rel: 'noopener', text: libelleLien }),
+  ]);
+}
+
 function reglageLecture(naviguer) {
   const saisie = el('input', {
     type: 'password', class: 'code-partage', placeholder: 'Clé Google',
@@ -280,7 +295,8 @@ function reglageLecture(naviguer) {
     morceaux.push(el('p', {
       class: 'discret',
       text: 'Le service de Google sait redresser un texte courbé. Il est gratuit '
-        + 'jusqu’à mille photos par mois, largement plus qu’une cave n’en demande. '
+        + 'jusqu’à mille photos par mois, largement plus qu’une cave n’en demande, '
+        + 'mais Google exige une carte bancaire sur le projet pour l’ouvrir. '
         + 'Pour l’activer, collez ci-dessous une clé créée dans votre console Google.',
     }));
   }
@@ -301,14 +317,20 @@ function reglageLecture(naviguer) {
     el('details', { class: 'details-techniques' }, [
       el('summary', { text: 'Comment obtenir la clé' }),
       el('ol', { class: 'liste-etapes' }, [
-        el('li', { text: 'Ouvrez console.cloud.google.com et choisissez votre projet' }),
-        el('li', { text: 'Dans « API et services », activez « Cloud Vision API »' }),
-        el('li', { text: 'Dans « Identifiants », créez une clé API' }),
-        el('li', {
-          text: 'Restreignez cette clé au site gitcad-jps.github.io et à la seule '
-            + 'Cloud Vision API, sans quoi n’importe qui pourrait s’en servir à vos frais',
-        }),
-        el('li', { text: 'Copiez la clé et collez-la ci-dessus' }),
+        etape('Activez le service', 'Ouvrir la page du service', `${CONSOLE}/apis/library/vision.googleapis.com${PROJET}`,
+          'Cliquez sur « Activer ». Google demande une carte bancaire sur le projet, '
+          + 'même pour la tranche gratuite.'),
+        etape('Créez la clé', 'Ouvrir les identifiants', `${CONSOLE}/apis/credentials${PROJET}`,
+          '« Créer des identifiants », puis « Clé API ». Copiez la clé qui s’affiche.'),
+        etape('Restreignez la clé', 'Revenir aux identifiants', `${CONSOLE}/apis/credentials${PROJET}`,
+          'Ouvrez la clé avec le crayon. Sous « Restrictions relatives aux applications » '
+          + 'choisissez « Sites web » et ajoutez gitcad-jps.github.io/*, puis sous '
+          + '« Restrictions relatives aux API » ne laissez que Cloud Vision API. '
+          + 'Sans cela, qui trouve la clé peut s’en servir à vos frais.'),
+        etape('Plafonnez le quota', 'Ouvrir les quotas', `${CONSOLE}/apis/api/vision.googleapis.com/quotas${PROJET}`,
+          'Facultatif mais rassurant : ramenez la limite mensuelle à 1000 requêtes, '
+          + 'le maximum gratuit. Au-delà le service refuse au lieu de facturer.'),
+        el('li', { text: 'Collez la clé dans le champ ci-dessus' }),
       ]),
       el('p', {
         class: 'discret',

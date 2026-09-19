@@ -1248,7 +1248,9 @@ select {
   font-size: 0.875rem;
   line-height: 1.5;
 }
-.liste-etapes li { margin-bottom: 0.35rem; }
+.liste-etapes li { margin-bottom: 0.6rem; }
+.liste-etapes strong { color: var(--texte); }
+.liste-etapes a { display: inline-block; margin-top: 0.15rem; }
 
 .bandeau-lien {
   display: inline-block;
