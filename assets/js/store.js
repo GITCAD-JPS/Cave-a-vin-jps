@@ -17,7 +17,7 @@ const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '25';
+export const VERSION_APP = '26';
 
 const etat = {
   vins: [],
@@ -217,8 +217,8 @@ export function supprimerVin(id) {
   if (!vin) return false;
   // Les dégustations reprennent la photo du vin : on ne l'efface que si plus
   // personne ne s'en sert.
-  if (vin.photoLocale && !photoPartagee(vin.photoLocale, null, id)) {
-    photos.supprimer(vin.photoLocale).catch(() => {});
+  for (const cle of [vin.photoLocale, vin.photoArriere]) {
+    if (cle && !photoPartagee(cle, null, id)) photos.supprimer(cle).catch(() => {});
   }
   etat.vins = etat.vins.filter((v) => v.id !== id);
   // Les dégustations gardent leur trace mais perdent le lien vers la fiche.
@@ -368,16 +368,16 @@ export function supprimerDegustation(id) {
 
 /** La photo `cle` sert-elle encore, en ignorant les fiches en cours de suppression ? */
 function photoPartagee(cle, saufDegustation, saufVin) {
-  return etat.vins.some((v) => v.photoLocale === cle && v.id !== saufVin)
+  return etat.vins.some((v) => (v.photoLocale === cle || v.photoArriere === cle) && v.id !== saufVin)
     || etat.degustations.some((d) => d.photoLocale === cle && d.id !== saufDegustation);
 }
 
 // --- sauvegarde et restauration ---------------------------------------------
 
 export async function exporterJson({ avecPhotos = true } = {}) {
-  const clesPhotos = [...etat.vins, ...etat.degustations]
-    .map((fiche) => fiche.photoLocale)
-    .filter(Boolean);
+  const clesPhotos = [...new Set([...etat.vins, ...etat.degustations]
+    .flatMap((fiche) => [fiche.photoLocale, fiche.photoArriere])
+    .filter(Boolean))];
   return {
     application: 'cave-a-vin',
     version: VERSION_DONNEES,

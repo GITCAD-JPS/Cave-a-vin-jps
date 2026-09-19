@@ -34,8 +34,11 @@ let etat = null;
 
 function reinitialiser(mode) {
   etat = {
-    mode, photoLocale: '', apercu: '', lecture: null, champs: null,
-    etape: 'photo', abandon: false, origine: null,
+    mode, lecture: null, champs: null, etape: 'photo', abandon: false,
+    // Les deux faces de la bouteille. L'avant suffit, l'arrière est un plus
+    // que l'on propose sans jamais l'imposer.
+    avant: { cle: '', apercu: '', origine: null },
+    arriere: { cle: '', apercu: '', origine: null },
   };
 }
 
@@ -64,30 +67,63 @@ export function rendre(conteneur, { naviguer, params }) {
 const CONSEIL_CADRAGE = "Cadrez l'étiquette seule, de face et bien éclairée. "
   + 'Une bouteille entière photographiée de loin se lit mal.';
 
+const CONSEIL_ARRIERE = 'Le nom du domaine est souvent écrit en arc de cercle devant, '
+  + "ce qui se lit mal. L'arrière le répète en petites lettres droites, avec le degré "
+  + 'et le volume.';
+
+/**
+ * Un bouton qui ouvre l'appareil photo ou la photothèque pour une face donnée.
+ *
+ * Deux entrées distinctes sont nécessaires : « capture » ouvre directement
+ * l'appareil photo sur téléphone, son absence laisse choisir dans la
+ * photothèque. Une seule entrée ne peut pas offrir les deux.
+ */
+function entreePhoto({ id, libelle, nomIcone, classe, appareil, face, naviguer }) {
+  const entree = el('input', {
+    type: 'file',
+    accept: 'image/*',
+    capture: appareil ? 'environment' : null,
+    class: 'visuellement-cache',
+    id,
+  });
+  entree.addEventListener('change', async () => {
+    const fichier = entree.files?.[0];
+    entree.value = '';
+    if (fichier) await traiterPhoto(fichier, naviguer, face);
+  });
+  const declencheur = el('label', { class: `bouton ${classe} bouton-photo`, for: id });
+  declencheur.append(icone(nomIcone), el('span', { text: libelle }));
+  return [declencheur, entree];
+}
+
+/** L'aperçu d'une face déjà prise, avec de quoi la retirer si elle est en trop. */
+function facePrise(face, libelle, naviguer) {
+  const morceaux = [
+    el('img', { src: etat[face].apercu, alt: libelle }),
+    el('span', { class: 'discret', text: libelle }),
+  ];
+  if (face === 'arriere') {
+    morceaux.push(el('button', {
+      type: 'button', class: 'bouton-lien', text: 'Retirer',
+      onclick: () => {
+        etat.arriere = { cle: '', apercu: '', origine: null };
+        naviguer(null);
+      },
+    }));
+  }
+  return el('div', { class: 'photo-face' }, morceaux);
+}
+
 function zonePhoto(naviguer) {
   const bloc = el('section', { class: 'bloc bloc-photo' });
 
-  if (!etat.apercu) {
+  if (!etat.avant.apercu) {
     // Deux entrées distinctes : « capture » ouvre directement l'appareil photo
     // sur téléphone, son absence laisse choisir dans la photothèque. Une seule
     // entrée ne peut pas offrir les deux.
-    const source = (id, libelle, nomIcone, classe, appareil) => {
-      const entree = el('input', {
-        type: 'file',
-        accept: 'image/*',
-        capture: appareil ? 'environment' : null,
-        class: 'visuellement-cache',
-        id,
-      });
-      entree.addEventListener('change', async () => {
-        const fichier = entree.files?.[0];
-        entree.value = '';
-        if (fichier) await traiterPhoto(fichier, naviguer);
-      });
-      const declencheur = el('label', { class: `bouton ${classe} bouton-photo`, for: id });
-      declencheur.append(icone(nomIcone), el('span', { text: libelle }));
-      return [declencheur, entree];
-    };
+    const source = (id, libelle, nomIcone, classe, appareil) => entreePhoto({
+      id, libelle, nomIcone, classe, appareil, face: 'avant', naviguer,
+    });
 
     bloc.append(
       // Ce qui fait échouer la lecture d'une étiquette n'est presque jamais le
@@ -105,11 +141,14 @@ function zonePhoto(naviguer) {
     return bloc;
   }
 
+  const faces = [facePrise('avant', 'Étiquette avant', naviguer)];
+  if (etat.arriere.apercu) faces.push(facePrise('arriere', 'Étiquette arrière', naviguer));
+
   bloc.append(
-    el('div', { class: 'photo-prise' }, [
-      el('img', { src: etat.apercu, alt: 'Photo prise' }),
+    el('div', { class: `photo-prise${faces.length > 1 ? ' photo-prise-deux' : ''}` }, [
+      el('div', { class: 'photo-faces' }, faces),
       el('div', { class: 'photo-prise-actions' }, [
-        bouton('Reprendre', {
+        bouton('Tout reprendre', {
           icone: 'appareil',
           onclick: () => { reinitialiser(etat.mode); naviguer(null); },
         }),
@@ -122,7 +161,7 @@ function zonePhoto(naviguer) {
   // décide, puis le choix est retenu.
   if (etat.etape === 'proposition') {
     bloc.append(
-      bouton("Lire l'étiquette", {
+      bouton(etat.arriere.cle ? 'Lire les deux étiquettes' : "Lire l'étiquette", {
         icone: 'appareil',
         classe: 'bouton bouton-primaire bouton-large',
         onclick: () => lancerLecture(naviguer),
@@ -137,6 +176,28 @@ function zonePhoto(naviguer) {
         type: 'button', class: 'bouton-lien', text: 'Continuer sans lire',
         onclick: () => { etat.etape = 'resultats'; naviguer(null); },
       }),
+    );
+  }
+
+  // Le nom du domaine est souvent écrit en arc de cercle sur la face avant, ce
+  // que le moteur lit très mal. La contre-étiquette répète les mêmes mots en
+  // petit et bien droit, avec le degré et le volume en prime. L'offre reste
+  // donc accessible même après une lecture : dès qu'une première étiquette a
+  // été lue, l'application enchaîne toute seule et ne laisserait plus le temps
+  // de la proposer.
+  if (!etat.arriere.cle && etat.etape !== 'lecture') {
+    const relire = etat.etape === 'resultats' && !etat.abandon;
+    bloc.append(
+      ...entreePhoto({
+        id: 'prise-arriere',
+        libelle: relire ? "Ajouter l'étiquette arrière et relire" : "Ajouter l'étiquette arrière",
+        nomIcone: 'appareil',
+        classe: '',
+        appareil: true,
+        face: 'arriere',
+        naviguer,
+      }),
+      el('p', { class: 'discret conseil-cadrage', text: CONSEIL_ARRIERE }),
     );
   }
 
@@ -163,14 +224,13 @@ function zonePhoto(naviguer) {
   return bloc;
 }
 
-async function traiterPhoto(fichier, naviguer) {
+async function traiterPhoto(fichier, naviguer, face = 'avant') {
   try {
     // La photo gardée dans la cave est réduite : c'est ce qu'il faut pour la
     // consulter, c'est trop peu pour lire une étiquette. On retient donc le
     // fichier tel que l'appareil l'a rendu, le temps de ce parcours.
-    etat.origine = fichier;
-    etat.photoLocale = await photos.enregistrer(fichier);
-    etat.apercu = await photos.url(etat.photoLocale);
+    const cle = await photos.enregistrer(fichier);
+    etat[face] = { cle, origine: fichier, apercu: await photos.url(cle) };
   } catch (erreur) {
     console.error(erreur);
     const raison = erreur?.name === 'NotReadableError' ? 'fichier illisible'
@@ -204,9 +264,15 @@ async function lancerLecture(naviguer) {
   // et c'est ce détail qui fait la différence sur une étiquette. Le repli sur
   // la copie ne sert pas aujourd'hui : il évite qu'une lecture devienne
   // muette si ce parcours venait à changer.
-  const blob = etat.origine || await photos.lire(etat.photoLocale).catch(() => null);
-  const lecture = blob
-    ? await lireEtiquette(blob, {
+  const blobs = [];
+  for (const face of ['avant', 'arriere']) {
+    if (!etat[face].cle && !etat[face].origine) continue;
+    const blob = etat[face].origine
+      || await photos.lire(etat[face].cle).catch(() => null);
+    if (blob) blobs.push(blob);
+  }
+  const lecture = blobs.length
+    ? await lireEtiquette(blobs, {
       onProgres: (p) => {
         etat.progres = p;
         const barre = document.querySelector('.progression-valeur');
@@ -278,7 +344,7 @@ function resultatsBoire(naviguer) {
 
 function ouvrirBoire(vin, naviguer) {
   dialogueBoire(vin, {
-    photoLocale: etat.photoLocale,
+    photoLocale: etat.avant.cle,
     onFait: () => { etat = null; naviguer('/degustations'); },
   });
 }
@@ -310,7 +376,8 @@ function resultatsAjout(naviguer) {
 function blocNouvelleFiche(naviguer) {
   const champs = etat.champs || {};
   const brouillon = {
-    photoLocale: etat.photoLocale,
+    photoLocale: etat.avant.cle,
+    photoArriere: etat.arriere.cle,
     millesime: champs.millesime ?? null,
     degre: champs.degre ?? null,
     volume: champs.volume || '75 cl',

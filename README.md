@@ -112,6 +112,14 @@ vraiment. Ce qui compte n'est pas la taille de la photo mais celle des lettres
 une fois la photo réduite, et c'est pourquoi le cadrage pèse bien plus lourd
 que le téléphone.
 
+Les deux faces de la bouteille peuvent être photographiées, et sont alors lues
+ensemble. Ce n'est pas un confort : sur beaucoup d'étiquettes le nom du domaine
+est écrit en arc de cercle, ce que le moteur lit très mal, alors que la
+contre-étiquette répète les mêmes mots en petites lettres droites, avec le
+degré et le volume en prime. Mesuré sur une vraie bouteille de Corbières :
+l'avant seul rend 2 mots attendus sur 8, l'arrière seul 5, les deux ensemble 6.
+La photo arrière reste facultative et vit avec la fiche du vin.
+
 Mots correctement lus sur un lot de neuf photos, gros plans et bouteilles
 entières mêlés :
 
@@ -126,6 +134,15 @@ Autrement dit : une photo prise de près avec un téléphone fonctionne, une
 bouteille entière photographiée de loin bien moins, une vignette récupérée
 ailleurs pas du tout. L'écran de prise de vue le rappelle avant le
 déclenchement.
+
+Il reste une limite que le réglage ne franchit pas. Le moteur cherche des
+lignes droites, et beaucoup d'étiquettes portent le nom du domaine en arc de
+cercle sur un verre bombé. Sur ces noms-là, la lecture échoue même découpée à
+la main et quelle que soit la taille. Ont été mesurés puis écartés faute de
+gain : le contraste automatique, la netteté, le redressement automatique, le
+zoom guidé par une première lecture, les réductions dites de qualité du
+navigateur, et l'italien ajouté au français. Le rapprochement avec la cave
+reste fiable, lui, car il n'a besoin que de quelques mots justes.
 
 Quand la lecture échoue, le parcours continue sans elle : la photo est
 conservée et la recherche manuelle prend le relais.

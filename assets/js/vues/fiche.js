@@ -43,8 +43,10 @@ function enteteFiche(vin, naviguer) {
   const photo = el('button', {
     type: 'button',
     class: 'photo-bouton',
-    title: "Agrandir l'étiquette",
-    'aria-label': `Agrandir l'étiquette de ${vin.nom}`,
+    title: vin.photoArriere ? 'Agrandir les étiquettes' : "Agrandir l'étiquette",
+    'aria-label': vin.photoArriere
+      ? `Agrandir les étiquettes de ${vin.nom}`
+      : `Agrandir l'étiquette de ${vin.nom}`,
     onclick: () => agrandirPhoto(vin),
   }, [vignette(vin, { taille: 'grande' })]);
 
@@ -231,7 +233,9 @@ function historique(vin, naviguer) {
 
 function agrandirPhoto(vin) {
   dialogue(vin.nom, () => {
-    const cadre = vignette(vin, { taille: 'plein' });
-    return el('div', { class: 'photo-plein' }, [cadre]);
+    const faces = [vignette(vin, { taille: 'plein' })];
+    // La contre-étiquette porte la description du vin et les mentions légales.
+    if (vin.photoArriere) faces.push(vignette(vin, { taille: 'plein', face: 'arriere' }));
+    return el('div', { class: `photo-plein${faces.length > 1 ? ' photo-plein-deux' : ''}` }, faces);
   }, { largeur: '40rem' });
 }

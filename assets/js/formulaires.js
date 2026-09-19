@@ -79,10 +79,10 @@ function selecteurNote(valeurInitiale) {
  * clé IndexedDB pour une photo prise ici, chemin statique pour une photo
  * issue du classeur.
  */
-function selecteurPhoto(fiche) {
-  const etat = { photoLocale: fiche.photoLocale || '', photo: fiche.photo || '' };
+function selecteurPhoto(fiche, { champ = 'photoLocale', champStatique = 'photo' } = {}) {
+  const etat = { photoLocale: fiche[champ] || '', photo: champStatique ? fiche[champStatique] || '' : '' };
   const apercu = el('div', { class: 'photo-apercu' });
-  const idEntree = `photo-entree-${Math.random().toString(36).slice(2, 8)}`;
+  const idEntree = `photo-entree-${champ}-${Math.random().toString(36).slice(2, 8)}`;
   // Sans « capture », le téléphone propose l'appareil photo et la photothèque.
   const entree = el('input', {
     type: 'file', accept: 'image/*', class: 'visuellement-cache', id: idEntree,
@@ -138,7 +138,7 @@ export function formulaireVin(vinExistant, { onEnregistre, brouillon } = {}) {
     nom: '', producteur: '', region: '', cepage: '', couleur: 'rouge', millesime: null,
     volume: '75 cl', degre: null, quantite: 1, provenance: 'Achat', source: '',
     dateReception: aujourdhui(), emplacements: {}, emplacementPrecis: '', note: '',
-    notation: null, photo: '', photoLocale: '', statut: 'en-cave',
+    notation: null, photo: '', photoLocale: '', photoArriere: '', statut: 'en-cave',
     // Le parcours photo fournit déjà la photo et ce qui a pu être lu dessus.
     ...brouillon,
   };
@@ -148,6 +148,9 @@ export function formulaireVin(vinExistant, { onEnregistre, brouillon } = {}) {
   ];
   const creation = !vinExistant;
   const photo = selecteurPhoto(vin);
+  // La contre-étiquette porte le degré, le volume et la description. Elle est
+  // facultative, et n'a pas d'équivalent dans le classeur d'origine.
+  const arriere = selecteurPhoto(vin, { champ: 'photoArriere', champStatique: '' });
 
   const champsEmplacement = EMPLACEMENTS.map(({ cle, libelle }) => {
     const entree = el('input', {
@@ -235,6 +238,7 @@ export function formulaireVin(vinExistant, { onEnregistre, brouillon } = {}) {
     champ('Note personnelle', el('textarea', { name: 'note', rows: '3' }, vin.note)),
     champ('Note sur 5', selecteurNote(vin.notation)),
     champ("Photo de l'étiquette", photo.noeud),
+    champ("Photo de l'étiquette arrière", arriere.noeud),
     el('div', { class: 'formulaire-actions' }, [
       bouton('Annuler', { classe: 'bouton', onclick: () => onEnregistre(null) }),
       el('button', {
@@ -275,6 +279,7 @@ export function formulaireVin(vinExistant, { onEnregistre, brouillon } = {}) {
       notation: nombreOuNull(texteSaisi(formulaire, 'notation')),
       photo: photo.etat.photo,
       photoLocale: photo.etat.photoLocale,
+      photoArriere: arriere.etat.photoLocale,
       statut: texteSaisi(formulaire, 'statut') === 'termine' ? 'termine' : 'en-cave',
     };
     const enregistre = creation ? store.ajouterVin(champs) : store.modifierVin(vin.id, champs);

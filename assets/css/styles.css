@@ -479,6 +479,8 @@ select {
 .vignette-plein img { object-fit: contain; background: var(--fond-doux); }
 
 .photo-plein { display: grid; }
+/* Les deux faces côte à côte quand la place le permet, l'une sous l'autre sinon. */
+.photo-plein-deux { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.8rem; }
 
 /* --- pastilles et étiquettes --------------------------------------------- */
 
@@ -1025,6 +1027,19 @@ select {
   border-radius: var(--rayon-petit);
   background: var(--fond-doux);
 }
+
+/* Les deux faces de la bouteille, chacune sous son nom. */
+.photo-faces { display: flex; justify-content: center; gap: 0.8rem; width: 100%; flex-wrap: wrap; }
+
+.photo-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.photo-prise-deux .photo-face img { max-height: 11rem; }
 
 .progression { width: 100%; display: flex; flex-direction: column; gap: 0.4rem; }
 .progression-piste { height: 0.4rem; border-radius: 999px; background: var(--fond-doux); overflow: hidden; }

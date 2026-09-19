@@ -9,7 +9,7 @@ import * as photos from './photos.js';
  * celles prises dans l'application viennent d'IndexedDB et sont résolues
  * après coup.
  */
-export function vignette(fiche, { taille = 'moyenne' } = {}) {
+export function vignette(fiche, { taille = 'moyenne', face = 'avant' } = {}) {
   const cadre = el('div', { class: `vignette vignette-${taille} couleur-${fiche.couleur}` });
   const initiale = (fiche.nom || '?').trim().charAt(0).toUpperCase();
   cadre.append(el('span', { class: 'vignette-initiale', text: initiale, 'aria-hidden': 'true' }));
@@ -18,7 +18,7 @@ export function vignette(fiche, { taille = 'moyenne' } = {}) {
     if (!source) return;
     const image = el('img', {
       src: source,
-      alt: `Étiquette de ${fiche.nom}`,
+      alt: face === 'arriere' ? `Étiquette arrière de ${fiche.nom}` : `Étiquette de ${fiche.nom}`,
       loading: 'lazy',
       decoding: 'async',
     });
@@ -26,7 +26,9 @@ export function vignette(fiche, { taille = 'moyenne' } = {}) {
     cadre.append(image);
   };
 
-  if (fiche.photoLocale) photos.url(fiche.photoLocale).then(afficher);
+  if (face === 'arriere') {
+    if (fiche.photoArriere) photos.url(fiche.photoArriere).then(afficher);
+  } else if (fiche.photoLocale) photos.url(fiche.photoLocale).then(afficher);
   else if (fiche.photo) afficher(fiche.photo);
   return cadre;
 }

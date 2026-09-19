@@ -19,6 +19,8 @@ const LANGUES = ['fra', 'ita'];
 // Même servis depuis le même site, cela peut échouer : ce délai garantit
 // qu'on rend la main plutôt que de laisser tourner indéfiniment.
 const DELAI_MAX = 45000;
+// Une photo de plus ne doit pas faire expirer le lot entier.
+const DELAI_PAR_PHOTO = 20000;
 // Ce qui compte n'est pas la taille de la photo, mais celle des lettres une
 // fois la photo réduite. Sur un gros plan d'étiquette, 1400 px suffisaient. Sur
 // une bouteille entière photographiée en portrait, l'étiquette n'occupe qu'une
@@ -26,6 +28,13 @@ const DELAI_MAX = 45000;
 // mêlant les deux cadrages : 1400 px lit 78 % des mots, 2000 px en lit 88 %, et
 // monter plus haut redescend à 86 % puis 81 %.
 const COTE_LECTURE = 2000;
+// Une étiquette n'est pas une page de texte : quelques lignes centrées, de
+// tailles très différentes, sans colonnes ni paragraphes. Chercher une mise en
+// page fait perdre 8 points sur le lot d'essai, et les photos sombres ne
+// rendent alors plus rien du tout. Le moteur embarqué traite déjà l'image
+// comme un bloc unique de lui-même, ce réglage ne fait que le garantir si son
+// défaut venait à changer.
+const DECOUPAGE_BLOC = '6';
 
 let chargement = null;
 let indisponible = false;
@@ -76,8 +85,15 @@ async function chargerLangue(code) {
 }
 
 /**
- * Lit le texte d'une photo d'étiquette.
- * `onProgres` reçoit une fraction entre 0 et 1.
+ * Lit le texte d'une ou plusieurs photos d'étiquette.
+ *
+ * Les deux faces d'une bouteille se complètent : l'avant porte le nom en
+ * grandes lettres courbées, que le moteur lit mal, l'arrière porte les mêmes
+ * mots en petit et bien droit, avec en prime le degré et le volume. Mesuré sur
+ * une vraie bouteille : l'avant seul rend 2 mots attendus sur 8, l'arrière
+ * seul 5, les deux ensemble 6.
+ *
+ * `onProgres` reçoit une fraction entre 0 et 1, sur l'ensemble des photos.
  * Renvoie null si la lecture n'a pas pu se faire, sans jamais rester en plan.
  */
 /**
@@ -114,10 +130,13 @@ async function normaliser(image) {
   return prete || image;
 }
 
-export async function lireEtiquette(image, { onProgres } = {}) {
+export async function lireEtiquette(images, { onProgres } = {}) {
+  const photos = (Array.isArray(images) ? images : [images]).filter(Boolean);
+  if (!photos.length) return null;
   let ouvrier = null;
   let minuteur = null;
 
+  let lues = 0;
   const reconnaitre = async () => {
     const [moteur, ...langues] = await Promise.all([
       chargerMoteur(),
@@ -132,15 +151,28 @@ export async function lireEtiquette(image, { onProgres } = {}) {
       corePath: DOSSIER,
       cacheMethod: 'none',
       logger: (etat) => {
-        if (etat.status === 'recognizing text' && onProgres) onProgres(etat.progress);
+        if (etat.status !== 'recognizing text' || !onProgres) return;
+        onProgres((lues + etat.progress) / photos.length);
       },
     });
-    const { data } = await ouvrier.recognize(await normaliser(image));
-    return { texte: data.text || '', confiance: data.confidence ?? 0 };
+    await ouvrier.setParameters({ tessedit_pageseg_mode: DECOUPAGE_BLOC });
+
+    // Plusieurs photos passent par le même ouvrier : le charger coûte bien
+    // plus cher que de lire une image de plus.
+    const morceaux = [];
+    let confiance = 0;
+    for (const photo of photos) {
+      const { data } = await ouvrier.recognize(await normaliser(photo));
+      if (data.text) morceaux.push(data.text);
+      confiance = Math.max(confiance, data.confidence ?? 0);
+      lues += 1;
+    }
+    return { texte: morceaux.join('\n'), confiance };
   };
 
   const delai = new Promise((_, rejeter) => {
-    minuteur = setTimeout(() => rejeter(new Error('délai dépassé')), DELAI_MAX);
+    const attente = DELAI_MAX + DELAI_PAR_PHOTO * (photos.length - 1);
+    minuteur = setTimeout(() => rejeter(new Error('délai dépassé')), attente);
   });
 
   try {

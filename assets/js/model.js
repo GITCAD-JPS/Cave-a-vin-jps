@@ -112,6 +112,9 @@ export function normaliserVin(brut = {}) {
     notation: nombreOuNull(brut.notation),
     photo: String(brut.photo ?? '').trim(),
     photoLocale: String(brut.photoLocale ?? '').trim(),
+    // La contre-étiquette, quand elle a été prise : elle porte souvent le
+    // degré, le volume et la description que la face avant tait.
+    photoArriere: String(brut.photoArriere ?? '').trim(),
     modifieLe: String(brut.modifieLe ?? '').trim(),
   };
   vin.bouteillesRangees = Object.values(emplacements).reduce((a, b) => a + b, 0);
