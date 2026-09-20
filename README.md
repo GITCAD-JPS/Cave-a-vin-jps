@@ -36,6 +36,7 @@ rejoignez.
 - Ouvrir une bouteille : le stock baisse, la dégustation est datée, notée et commentée, et la fiche passe en terminé sur la dernière bouteille
 - Ajouter des bouteilles, les déplacer d'un emplacement à l'autre, modifier ou supprimer la fiche
 - Photo d'étiquette agrandissable, historique des dégustations du vin
+- Le journal réunit sur une même ligne du temps les bouteilles entrées en cave et celles qui ont été bues, avec un filtre pour n'en voir qu'une sorte
 
 **Le journal des dégustations**
 - Les bouteilles bues à la maison et les vins goûtés ailleurs sur une même ligne du temps

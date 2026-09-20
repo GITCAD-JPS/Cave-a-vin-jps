@@ -17,7 +17,7 @@ const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '32';
+export const VERSION_APP = '33';
 
 const etat = {
   vins: [],
@@ -201,7 +201,11 @@ export async function vider() {
 const maintenant = () => new Date().toISOString();
 
 export function ajouterVin(champs) {
-  const vin = normaliserVin({ ...champs, id: identifiant('v'), modifieLe: maintenant() });
+  // `creeLe` date l'entrée en cave et ne bouge plus ensuite, là où `modifieLe`
+  // suit la moindre correction de quantité.
+  const vin = normaliserVin({
+    creeLe: maintenant(), ...champs, id: identifiant('v'), modifieLe: maintenant(),
+  });
   etat.vins.unshift(vin);
   enregistrer();
   synchro.ecrireVin(vin);

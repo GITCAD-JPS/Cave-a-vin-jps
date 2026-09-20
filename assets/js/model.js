@@ -115,6 +115,9 @@ export function normaliserVin(brut = {}) {
     // La contre-étiquette, quand elle a été prise : elle porte souvent le
     // degré, le volume et la description que la face avant tait.
     photoArriere: String(brut.photoArriere ?? '').trim(),
+    // Posée à la création et jamais retouchée, contrairement à `modifieLe`
+    // qu'une quantité corrigée déplace. C'est elle qui date l'entrée en cave.
+    creeLe: String(brut.creeLe ?? '').trim(),
     modifieLe: String(brut.modifieLe ?? '').trim(),
   };
   vin.bouteillesRangees = Object.values(emplacements).reduce((a, b) => a + b, 0);
@@ -263,6 +266,36 @@ export function filtresActifs(filtres) {
   if (f.anomalies) nombre += 1;
   if (f.statut !== FILTRES_PAR_DEFAUT.statut) nombre += 1;
   return nombre;
+}
+
+/**
+ * Quand ce vin est entré en cave, au mieux de ce que l'on sait.
+ *
+ * Les fiches créées depuis l'application portent `creeLe`. Celles venues du
+ * classeur n'ont qu'une date de réception, souvent écrite à la main et parfois
+ * approximative — « Mai 2026 ». Faute des deux, la dernière modification
+ * connue vaut mieux que rien pour ranger la ligne à sa place.
+ */
+export function dateEntree(vin) {
+  if (vin.creeLe) return vin.creeLe.slice(0, 10);
+  return dateTriable(vin.dateReception) || String(vin.modifieLe || '').slice(0, 10);
+}
+
+/**
+ * Le journal complet : ce qui est entré en cave et ce qui en est sorti,
+ * réuni sur une même ligne du temps, du plus récent au plus ancien.
+ */
+export function journalComplet(vins, degustations) {
+  const entrees = [
+    ...vins.map((vin) => ({ genre: 'entree', quand: dateEntree(vin), fiche: vin })),
+    ...degustations.map((d) => ({
+      genre: 'degustation', quand: dateTriable(d.date) || '', fiche: d,
+    })),
+  ];
+  return entrees.sort((a, b) => {
+    if (a.quand !== b.quand) return String(b.quand).localeCompare(String(a.quand));
+    return collateur.compare(a.fiche.nom || '', b.fiche.nom || '');
+  });
 }
 
 export function trierDegustations(degustations) {

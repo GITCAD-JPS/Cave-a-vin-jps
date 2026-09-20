@@ -1,6 +1,6 @@
 // Fragments d'interface partagés par plusieurs vues.
 
-import { ajouter, el, etoiles, icone } from './dom.js';
+import { ajouter, el, etoiles, icone, pluriel } from './dom.js';
 import { anomalies, libelleCouleur, repartition } from './model.js';
 import * as photos from './photos.js';
 
@@ -114,6 +114,58 @@ export function carteVin(vin, { onOuvrir, onBoire }) {
 }
 
 /** Ligne du journal des dégustations. */
+/**
+ * Une bouteille entrée en cave, sur la même ligne du temps que les dégustations.
+ *
+ * La date affichée est celle que l'on a écrite sur la fiche quand il y en a
+ * une, fût-elle approximative comme « Mai 2026 », plutôt qu'une date calculée
+ * qui aurait l'air plus sûre qu'elle ne l'est.
+ */
+export function ligneEntree(vin, { onOuvrir }) {
+  const ligne = el('article', { class: 'ligne-degustation ligne-entree' });
+  ligne.append(vignette(vin, { taille: 'petite' }));
+
+  const texte = el('div', { class: 'ligne-texte' }, [
+    el('h3', { text: vin.nom || 'Vin sans nom' }),
+    el('p', { class: 'carte-soustitre', text: sousTitre(vin) || '—' }),
+  ]);
+  const meta = el('div', { class: 'carte-meta' }, [
+    el('span', { class: 'etiquette etiquette-entree', text: 'Entrée en cave' }),
+  ]);
+  // Ce que l'on sait de la date, sans lui donner l'air plus sûre qu'elle n'est.
+  // Une fiche du classeur n'a souvent qu'une dernière modification, qui situe
+  // la ligne sans dater l'achat : elle est annoncée comme une approximation.
+  if (vin.dateReception) {
+    meta.append(el('span', { class: 'etiquette', text: vin.dateReception }));
+  } else if (vin.creeLe) {
+    meta.append(el('span', { class: 'etiquette', text: dateLisible(vin.creeLe) }));
+  } else if (vin.modifieLe) {
+    meta.append(el('span', { class: 'etiquette', text: `vers le ${dateLisible(vin.modifieLe)}` }));
+  }
+  if (vin.quantite) {
+    meta.append(el('span', { class: 'discret', text: pluriel(vin.quantite, 'bouteille', 'bouteilles') }));
+  }
+  if (vin.provenance) meta.append(el('span', { class: 'discret', text: vin.provenance }));
+  texte.append(meta);
+  ligne.append(texte);
+
+  if (onOuvrir) {
+    ligne.append(el('div', { class: 'ligne-actions' }, [
+      el('button', {
+        type: 'button', class: 'bouton-lien', text: 'Voir la fiche',
+        onclick: () => onOuvrir(vin.id),
+      }),
+    ]));
+  }
+  return ligne;
+}
+
+/** Une date ISO rendue comme on l'écrit ici. */
+const dateLisible = (iso) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('fr-CH');
+};
+
 export function ligneDegustation(degustation, { onOuvrir, onModifier }) {
   const ligne = el('article', { class: 'ligne-degustation' });
   ligne.append(vignette(degustation, { taille: 'petite' }));

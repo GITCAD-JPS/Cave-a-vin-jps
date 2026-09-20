@@ -1015,6 +1015,14 @@ select {
   gap: 0.8rem;
 }
 
+/* Une entrée en cave se distingue d'une dégustation au premier coup d'œil. */
+.etiquette-entree {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.ligne-entree { border-left: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+
 .conseil-cadrage {
   margin: 0;
   text-align: center;
