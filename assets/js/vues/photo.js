@@ -6,7 +6,7 @@
 // modifiable. Quand la lecture échoue, le parcours continue sans elle.
 
 import { bouton, dialogue, el, icone, message, pluriel, vider } from '../dom.js';
-import { sousTitre, vignette } from '../composants.js';
+import { pastillesLignes, sousTitre, vignette } from '../composants.js';
 import {
   extraireChamps, lectureIndisponible, lireEtiquette, nomProbable, raisonDuRepli, rapprocher,
 } from '../etiquette.js';
@@ -432,29 +432,6 @@ function ouvrirCreation(brouillon, lignes, naviguer) {
  * Lignes lues sur l'étiquette, cliquables : elles remplissent le dernier champ
  * texte touché, le nom par défaut. Plus rapide que de tout retaper.
  */
-function pastillesLignes(lignes, formulaire) {
-  let cible = 'nom';
-  formulaire.addEventListener('focusin', (evenement) => {
-    const nom = evenement.target?.name;
-    if (nom && evenement.target.type === 'text') cible = nom;
-  });
-
-  return el('div', { class: 'lignes-lues' }, [
-    el('span', { class: 'champ-etiquette', text: "Lu sur l'étiquette — touchez pour remplir" }),
-    el('div', { class: 'etiquettes' }, lignes.map((ligne) => el('button', {
-      type: 'button',
-      class: 'etiquette etiquette-cliquable',
-      text: ligne,
-      onclick: () => {
-        const champ = formulaire.elements[cible];
-        if (!champ) return;
-        champ.value = ligne;
-        champ.focus();
-      },
-    }))),
-  ]);
-}
-
 // --- éléments partagés ------------------------------------------------------
 
 function carteCandidat({ vin, score }, { libelleAction, onChoisir }) {

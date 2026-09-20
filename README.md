@@ -171,6 +171,12 @@ la requête envoyée comme pour le repli sur refus. La forme d'une réponse
 réussie suit la documentation de Google et n'a pas pu être observée en vrai
 depuis l'atelier, faute de clé.
 
+La fiche d'un vin peut être relue à tout moment : « Modifier » propose
+« Relire l'étiquette avant » et « Relire l'étiquette arrière » sous chaque
+photo. Les fiches remplies quand la lecture était mauvaise se rattrapent ainsi
+sans tout ressaisir. Un champ vide est rempli d'office, un champ déjà
+renseigné ne change que si l'on touche la pastille qui porte la valeur lue.
+
 Quand la lecture échoue, le parcours continue sans elle : la photo est
 conservée et la recherche manuelle prend le relais.
 Un délai maximum garantit que la main est rendue, et un bouton permet de

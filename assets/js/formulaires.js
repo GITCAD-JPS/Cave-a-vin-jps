@@ -1,9 +1,11 @@
 // Formulaires et boîtes de dialogue de saisie.
 
 import { bouton, champ, dialogue, el, icone, message, selection, vider } from './dom.js';
+import { pastillesLignes, pastillesValeurs } from './composants.js';
 import {
   COULEURS, EMPLACEMENTS, VOLUMES, aujourdhui, dateTriable, entier, nombreOuNull,
 } from './model.js';
+import { extraireChamps, lireEtiquette } from './etiquette.js';
 import * as photos from './photos.js';
 import * as store from './store.js';
 
@@ -79,7 +81,70 @@ function selecteurNote(valeurInitiale) {
  * clé IndexedDB pour une photo prise ici, chemin statique pour une photo
  * issue du classeur.
  */
-function selecteurPhoto(fiche, { champ = 'photoLocale', champStatique = 'photo' } = {}) {
+/**
+ * Relit la photo d'une face et propose ce qu'elle y trouve.
+ *
+ * Rien n'est écrasé sans un geste : un champ vide est rempli d'office, un
+ * champ déjà renseigné ne change que si l'on touche la pastille. Le résultat
+ * s'insère sous le champ photo, là où le regard se trouve déjà.
+ */
+async function relireEtiquette(etatFace, declencheur, donnerFormulaire) {
+  // Le champ photo est un <label> : une pastille posée dedans rouvrirait
+  // l'appareil photo au moindre effleurement. Le résultat va donc juste
+  // après lui, dans le formulaire.
+  const champPhoto = declencheur.closest('.champ') || declencheur.parentElement;
+  const poser = (noeud) => champPhoto.after(noeud);
+  let precedent = champPhoto.nextElementSibling;
+  while (precedent?.classList.contains('lignes-lues')) {
+    const suivant = precedent.nextElementSibling;
+    precedent.remove();
+    precedent = suivant;
+  }
+  const libelle = declencheur.querySelector('span') || declencheur;
+  const initial = libelle.textContent;
+  declencheur.disabled = true;
+  libelle.textContent = 'Lecture…';
+
+  try {
+    const blob = await blobDeLaFace(etatFace);
+    if (!blob) throw new Error('photo introuvable sur cet appareil');
+    const lecture = await lireEtiquette([blob], {
+      cleVision: store.preferences().cleVision || '',
+    });
+    if (!lecture) throw new Error('le moteur de lecture n’a pas répondu');
+
+    const champs = extraireChamps(lecture.texte);
+    const formulaire = donnerFormulaire();
+    const valeurs = pastillesValeurs(champs, formulaire);
+    const lignes = (champs.lignes || []).length
+      ? pastillesLignes(champs.lignes, formulaire)
+      : null;
+    // Posées à l'envers : chacune se glisse juste après le champ photo, donc
+    // la dernière posée passe devant.
+    if (lignes) poser(lignes);
+    if (valeurs) poser(valeurs);
+    if (!valeurs && !lignes) message("Rien de sûr n'a pu être lu sur cette photo");
+    else message(lecture.parGoogle ? 'Étiquette relue' : 'Étiquette relue par le moteur embarqué');
+  } catch (erreur) {
+    console.info('Relecture impossible', erreur);
+    message(`Relecture impossible : ${erreur?.message || 'raison inconnue'}`, 'erreur');
+  } finally {
+    declencheur.disabled = false;
+    libelle.textContent = initial;
+  }
+}
+
+/** La photo d'une face, telle qu'on peut la redonner au moteur de lecture. */
+async function blobDeLaFace(etat) {
+  if (etat.photoLocale) return photos.lire(etat.photoLocale);
+  if (etat.photo) return (await fetch(etat.photo)).blob();
+  return null;
+}
+
+function selecteurPhoto(fiche, {
+  champ = 'photoLocale', champStatique = 'photo', onRelire = null,
+  libelleRelecture = "Relire l'étiquette",
+} = {}) {
   const etat = { photoLocale: fiche[champ] || '', photo: champStatique ? fiche[champStatique] || '' : '' };
   const apercu = el('div', { class: 'photo-apercu' });
   const idEntree = `photo-entree-${champ}-${Math.random().toString(36).slice(2, 8)}`;
@@ -93,6 +158,14 @@ function selecteurPhoto(fiche, { champ = 'photoLocale', champStatique = 'photo' 
     const source = etat.photoLocale ? await photos.url(etat.photoLocale) : etat.photo;
     if (source) {
       apercu.append(el('img', { src: source, alt: "Aperçu de l'étiquette" }));
+      // Une fiche ancienne a pu être remplie quand la lecture était mauvaise.
+      // Relire la même photo avec le moteur du jour vaut mieux que la ressaisir.
+      if (onRelire) {
+        apercu.append(bouton(libelleRelecture, {
+          classe: 'bouton bouton-discret',
+          onclick: (evenement) => onRelire(etat, evenement.currentTarget),
+        }));
+      }
       apercu.append(bouton('Retirer', {
         classe: 'bouton bouton-discret',
         onclick: () => { etat.photoLocale = ''; etat.photo = ''; rafraichir(); },
@@ -147,10 +220,18 @@ export function formulaireVin(vinExistant, { onEnregistre, brouillon } = {}) {
     { valeur: 'termine', libelle: 'Terminé' },
   ];
   const creation = !vinExistant;
-  const photo = selecteurPhoto(vin);
+  // Déclaré avant les sélecteurs, qui s'en servent : le formulaire n'existe
+  // pas encore, mais la fonction ne sera appelée qu'après.
+  const relire = (etatFace, declencheur) => relireEtiquette(etatFace, declencheur, () => formulaire);
+  const photo = selecteurPhoto(vin, {
+    onRelire: relire, libelleRelecture: "Relire l'étiquette avant",
+  });
   // La contre-étiquette porte le degré, le volume et la description. Elle est
   // facultative, et n'a pas d'équivalent dans le classeur d'origine.
-  const arriere = selecteurPhoto(vin, { champ: 'photoArriere', champStatique: '' });
+  const arriere = selecteurPhoto(vin, {
+    champ: 'photoArriere', champStatique: '', onRelire: relire,
+    libelleRelecture: "Relire l'étiquette arrière",
+  });
 
   const champsEmplacement = EMPLACEMENTS.map(({ cle, libelle }) => {
     const entree = el('input', {

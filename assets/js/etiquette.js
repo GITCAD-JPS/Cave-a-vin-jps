@@ -266,7 +266,7 @@ const MENTIONS = [
   /contient/i, /contains/i, /sulfit/i, /solfit/i, /sulphit/i,
   /agricultur/i, /biolog/i, /demeter/i,
   /est\s+situ/i, /is\s+located/i, /se\s+servir/i, /can\s+be\s+served/i,
-  /%\s*vol/i, /\b\d{2,4}\s*(ml|cl)\b/i,
+  /%\s*vol/i, /\b\d{2,4}\s*(ml|cl)\b/i, /^\s*\d[\d.,]*\s*(%|vol|ml|cl|l)\b/i,
 ];
 
 // Un nom de domaine coupé en deux par la mise en page : « DOMAINE » puis
@@ -276,8 +276,12 @@ const PARTICULE = /^(de|du|des|d'|d’|la|le|les|dei|della|di)\s/i;
 
 /** Lignes du texte assez substantielles pour servir de nom ou de producteur. */
 function lignesCandidates(texte) {
+  // Les mentions sont cherchées sur la ligne d'origine, avant que le nettoyage
+  // n'emporte les signes qui les trahissent : « 14% VOL. » devient « 14 VOL. »
+  // et ne ressemble plus à un degré.
   const brutes = texte
     .split(/\r?\n/)
+    .filter((ligne) => !MENTIONS.some((motif) => motif.test(ligne)))
     .map((ligne) => ligne.replace(/[^\p{L}\p{N}'’&.\- ]/gu, ' ').replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 

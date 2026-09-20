@@ -33,6 +33,78 @@ export function vignette(fiche, { taille = 'moyenne', face = 'avant' } = {}) {
   return cadre;
 }
 
+/**
+ * Les lignes lues sur une étiquette, à toucher pour remplir un champ.
+ *
+ * Le champ visé est le dernier champ texte touché, ce qui permet de ranger
+ * une ligne dans le nom, la suivante dans le producteur, sans autre réglage.
+ */
+export function pastillesLignes(lignes, formulaire, titre = "Lu sur l'étiquette — touchez pour remplir") {
+  let cible = 'nom';
+  formulaire.addEventListener('focusin', (evenement) => {
+    const nom = evenement.target?.name;
+    if (nom && evenement.target.type === 'text') cible = nom;
+  });
+
+  return el('div', { class: 'lignes-lues' }, [
+    el('span', { class: 'champ-etiquette', text: titre }),
+    el('div', { class: 'etiquettes' }, lignes.map((ligne) => el('button', {
+      type: 'button',
+      class: 'etiquette etiquette-cliquable',
+      text: ligne,
+      onclick: () => {
+        const champ = formulaire.elements[cible];
+        if (!champ) return;
+        champ.value = ligne;
+        champ.focus();
+      },
+    }))),
+  ]);
+}
+
+/**
+ * Les valeurs reconnues sans ambiguïté, chacune sachant où elle va.
+ *
+ * Un champ vide est rempli d'office, il n'y a rien à perdre. Un champ déjà
+ * renseigné ne l'est jamais sans un geste : la pastille reste là, et c'est
+ * en la touchant qu'on accepte de remplacer ce qu'on avait écrit.
+ */
+export function pastillesValeurs(champs, formulaire) {
+  const proposees = [
+    ['millesime', 'millésime', champs.millesime],
+    ['degre', 'degré', champs.degre === null || champs.degre === undefined
+      ? null : `${String(champs.degre).replace('.', ',')} %`],
+    ['volume', 'volume', champs.volume],
+  ].filter(([, , valeur]) => valeur !== null && valeur !== undefined && valeur !== '');
+  if (!proposees.length) return null;
+
+  const pastilles = [];
+  for (const [nom, libelle, valeur] of proposees) {
+    const champ = formulaire.elements[nom];
+    if (!champ) continue;
+    const texte = String(valeur);
+    if (!String(champ.value).trim()) {
+      champ.value = nom === 'degre' ? String(champs.degre).replace('.', ',') : texte;
+      continue;
+    }
+    if (String(champ.value).trim() === texte.trim()) continue;
+    pastilles.push(el('button', {
+      type: 'button',
+      class: 'etiquette etiquette-cliquable',
+      text: `${libelle} ${texte}`,
+      onclick: () => {
+        champ.value = nom === 'degre' ? String(champs.degre).replace('.', ',') : texte;
+        champ.focus();
+      },
+    }));
+  }
+  if (!pastilles.length) return null;
+  return el('div', { class: 'lignes-lues' }, [
+    el('span', { class: 'champ-etiquette', text: 'Différent de la fiche — touchez pour remplacer' }),
+    el('div', { class: 'etiquettes' }, pastilles),
+  ]);
+}
+
 export function pastilleCouleur(couleur) {
   return el('span', { class: `pastille couleur-${couleur}`, text: libelleCouleur(couleur) });
 }
