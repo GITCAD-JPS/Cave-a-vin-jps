@@ -196,6 +196,9 @@ export const FILTRES_PAR_DEFAUT = {
 
 export const TRIS = [
   { cle: 'nom', libelle: 'Nom (A→Z)' },
+  // Une bouteille qu'on vient d'ajouter se range au milieu de l'alphabet, là
+  // où personne ne la cherche. Ce tri la remet sous les yeux.
+  { cle: 'ajout-desc', libelle: 'Derniers ajoutés' },
   { cle: 'producteur', libelle: 'Producteur' },
   { cle: 'region', libelle: 'Région' },
   { cle: 'millesime-desc', libelle: 'Millésime (récent)' },
@@ -221,6 +224,11 @@ function comparer(tri) {
       return (a, b) => b.quantite - a.quantite || parNom(a, b);
     case 'notation-desc':
       return (a, b) => (b.notation ?? -1) - (a.notation ?? -1) || parNom(a, b);
+    // Les fiches venues du classeur n'ont pas de date de modification : elles
+    // se rangent derrière, par ordre alphabétique, plutôt qu'en désordre.
+    case 'ajout-desc':
+      return (a, b) => String(b.modifieLe || '').localeCompare(String(a.modifieLe || ''))
+        || parNom(a, b);
     default:
       return parNom;
   }

@@ -23,6 +23,7 @@ rejoignez.
 - Filtres d'un geste toujours visibles par couleur et par emplacement, panneau complet pour le reste
 - Tri par nom, producteur, région, millésime, quantité ou note
 - Chaque vin affiche sa photo d'étiquette, sa couleur, sa répartition entre les trois emplacements et ce qui reste à vérifier
+- Tri par nom, producteur, région, millésime, quantité, note, ou par ordre d'ajout pour retrouver la dernière bouteille rentrée
 
 **Les accords mets et vins**
 - Choisir un plat parmi seize familles, obtenir les bouteilles en cave qui lui conviennent, classées
