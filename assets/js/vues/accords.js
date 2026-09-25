@@ -13,13 +13,15 @@ let toutAfficher = false;
 // Filtre de couleur, qui vaut pour tous les plats. Vide veut dire toutes.
 let couleurChoisie = '';
 
-// Les couleurs qu'on veut pouvoir isoler devant la cave. Le rosé, le pétillant
-// et le liquoreux sont trop peu nombreux pour mériter une puce chacun : ils
-// restent dans « Toutes ».
+// Les couleurs qu'on veut pouvoir isoler devant la cave. Le liquoreux n'a pas
+// sa puce : une seule bouteille, et elle ressort déjà d'elle-même en tête des
+// fromages forts et des desserts.
 const COULEURS_FILTRE = [
   { cle: '', libelle: 'Toutes' },
   { cle: 'blanc', libelle: 'Blanc' },
   { cle: 'rouge', libelle: 'Rouge' },
+  { cle: 'rose', libelle: 'Rosé' },
+  { cle: 'petillant', libelle: 'Pétillant' },
 ];
 
 // En dessous de ce score, l'accord est défendable mais banal : on ne l'impose
@@ -96,7 +98,7 @@ function resultats(vins, naviguer) {
       .toLowerCase();
     return etatVide(
       couleurChoisie
-        ? `Aucun ${teinte} pour « ${libelle} »`
+        ? `Aucun vin ${teinte} pour « ${libelle} »`
         : `Rien d'évident pour « ${libelle} »`,
       couleurChoisie
         ? `La cave propose ${pluriel(tous.length, 'bouteille', 'bouteilles')} pour ce plat, `
