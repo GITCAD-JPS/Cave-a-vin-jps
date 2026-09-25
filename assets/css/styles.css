@@ -982,6 +982,10 @@ select {
 
 .choix-plats { flex-wrap: wrap; overflow-x: visible; margin-bottom: 1rem; }
 
+/* Le filtre de couleur, sous les plats et au-dessus des résultats. */
+.choix-couleurs { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.9rem; }
+.choix-couleurs .choix-plats { margin-bottom: 0; }
+
 .puce {
   flex: none;
   padding: 0.35rem 0.8rem;

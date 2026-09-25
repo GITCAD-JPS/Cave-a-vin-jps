@@ -10,6 +10,17 @@ import * as store from '../store.js';
 // Le plat choisi survit à l'aller-retour vers une fiche.
 let platChoisi = '';
 let toutAfficher = false;
+// Filtre de couleur, qui vaut pour tous les plats. Vide veut dire toutes.
+let couleurChoisie = '';
+
+// Les couleurs qu'on veut pouvoir isoler devant la cave. Le rosé, le pétillant
+// et le liquoreux sont trop peu nombreux pour mériter une puce chacun : ils
+// restent dans « Toutes ».
+const COULEURS_FILTRE = [
+  { cle: '', libelle: 'Toutes' },
+  { cle: 'blanc', libelle: 'Blanc' },
+  { cle: 'rouge', libelle: 'Rouge' },
+];
 
 // En dessous de ce score, l'accord est défendable mais banal : on ne l'impose
 // pas dans une liste consultée debout devant la cave.
@@ -27,6 +38,7 @@ export function rendre(conteneur, { naviguer }) {
       ]),
     ]),
     choixDuPlat(naviguer),
+    platChoisi ? choixDeLaCouleur(naviguer) : null,
     platChoisi ? resultats(vins, naviguer) : invite(),
   ]));
 }
@@ -45,6 +57,23 @@ function choixDuPlat(naviguer) {
   })));
 }
 
+function choixDeLaCouleur(naviguer) {
+  return el('div', { class: 'choix-couleurs' }, [
+    el('span', { class: 'champ-etiquette', text: 'Couleur' }),
+    el('div', { class: 'choix-plats' }, COULEURS_FILTRE.map((couleur) => el('button', {
+      type: 'button',
+      class: `puce${couleurChoisie === couleur.cle ? ' active' : ''}`,
+      'aria-pressed': String(couleurChoisie === couleur.cle),
+      text: couleur.libelle,
+      onclick: () => {
+        couleurChoisie = couleur.cle;
+        toutAfficher = false;
+        naviguer(null);
+      },
+    }))),
+  ]);
+}
+
 function invite() {
   return etatVide(
     'Choisissez un plat',
@@ -54,14 +83,26 @@ function invite() {
 }
 
 function resultats(vins, naviguer) {
-  const trouves = vinsPourPlat(vins, platChoisi);
+  const tous = vinsPourPlat(vins, platChoisi);
+  const trouves = couleurChoisie
+    ? tous.filter((e) => e.vin.couleur === couleurChoisie)
+    : tous;
   const libelle = LIBELLE_PLAT.get(platChoisi) || platChoisi;
 
   if (!trouves.length) {
+    // Distinguer les deux vides : la cave n'a rien pour ce plat, ou rien de
+    // cette couleur-là. Sans quoi on croirait la table muette.
+    const teinte = (COULEURS_FILTRE.find((c) => c.cle === couleurChoisie)?.libelle || '')
+      .toLowerCase();
     return etatVide(
-      `Rien d'évident pour « ${libelle} »`,
-      "Aucune bouteille en cave ne ressort pour ce plat. Le cépage ou l'appellation "
-      + 'manquent peut-être sur certaines fiches.',
+      couleurChoisie
+        ? `Aucun ${teinte} pour « ${libelle} »`
+        : `Rien d'évident pour « ${libelle} »`,
+      couleurChoisie
+        ? `La cave propose ${pluriel(tous.length, 'bouteille', 'bouteilles')} pour ce plat, `
+          + 'mais d’une autre couleur. Touchez « Toutes » pour les voir.'
+        : "Aucune bouteille en cave ne ressort pour ce plat. Le cépage ou l'appellation "
+          + 'manquent peut-être sur certaines fiches.',
     );
   }
 
