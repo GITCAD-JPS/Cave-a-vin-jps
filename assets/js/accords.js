@@ -13,6 +13,14 @@
 // là où l'acidité d'un blanc tranche le gras et relance la dégustation. Les
 // blancs mènent donc, les bulles dégraissant en prime, et les rouges
 // tanniques reculent au rang d'accord possible.
+//
+// Le barème des fromages suit Toutlevin — « entre 80 et 90 % des fromages
+// préfèrent le vin blanc », avec le sommelier Sébastien Maucarré — et le
+// dossier d'iDealwine, qui détaille les six familles. Les deux divergent sur
+// un point, la croûte fleurie : iDealwine y voit le plus bel accord dans un
+// champagne peu dosé, Toutlevin juge le blanc mauvais tant qu'on garde la
+// croûte. Les blancs mènent donc sur les fromages doux, mais le pinot noir y
+// reste à trois, qui est l'avis de la seconde école.
 
 export const PLATS = [
   { cle: 'aperitif', libelle: 'Apéritif' },
@@ -86,7 +94,7 @@ const PAR_CEPAGE = {
   // Blancs
   chardonnay: profil('ample, fruits blancs et beurre', '10-12 °C',
     { poisson: 3, fruitsDeMer: 3, volaille: 3, viandeBlanche: 2,
-      fromageDoux: 3, aperitif: 2, patesFruitsDeMer: 2, fromageFort: 2 }),
+      fromageDoux: 3, aperitif: 2, patesFruitsDeMer: 2, fromageFort: 3 }),
   chasselas: profil('léger et floral, très désaltérant', '9-11 °C',
     { aperitif: 3, raclette: 3, poisson: 2, fromageDoux: 3, vegetarien: 2, patesFruitsDeMer: 2 }),
   'sauvignon blanc': profil('vif, agrumes et buis', '8-10 °C',
@@ -108,9 +116,11 @@ const PAR_CEPAGE = {
   gewurztraminer: profil('exubérant, litchi et rose', '10-12 °C',
     { epice: 3, fromageFort: 3, dessert: 2, aperitif: 2, patesFruitsDeMer: 1 }),
   marsanne: profil('gras et miellé, faible acidité', '11-13 °C',
-    { poisson: 2, volaille: 3, fromageFort: 3, viandeBlanche: 2, patesFruitsDeMer: 2 }),
+    { poisson: 2, volaille: 3, fromageFort: 3, viandeBlanche: 2,
+      patesFruitsDeMer: 2, raclette: 3 }),
   ermitage: profil('gras et miellé, puissant', '11-13 °C',
-    { volaille: 3, fromageFort: 3, viandeBlanche: 2, poisson: 2, patesFruitsDeMer: 1 }),
+    { volaille: 3, fromageFort: 3, viandeBlanche: 2, poisson: 2,
+      patesFruitsDeMer: 1, raclette: 3 }),
   heida: profil('altier et salin, notes d’agrumes', '10-12 °C',
     { aperitif: 3, poisson: 2, raclette: 2, fromageDoux: 3, patesFruitsDeMer: 2 }),
   viognier: profil('abricot et fleurs blanches, onctueux', '10-12 °C',
@@ -155,7 +165,8 @@ const PAR_APPELLATION = {
   cerasuolo: profil('fruits rouges croquants, servi frais', '12-14 °C',
     { charcuterie: 3, pizza: 2, pates: 2, vegetarien: 2, patesFruitsDeMer: 2 }),
   bourgogne: profil('finesse bourguignonne', '13-16 °C',
-    { volaille: 3, viandeBlanche: 2, fromageDoux: 3, poisson: 2, patesFruitsDeMer: 2 }),
+    { volaille: 3, viandeBlanche: 2, fromageDoux: 3, poisson: 2,
+      patesFruitsDeMer: 2, fromageFort: 3 }),
   bordeaux: profil('assemblage structuré', '17-18 °C',
     { viandeRouge: 3, gibier: 2, fromageFort: 1 }),
   valais: profil('vin de montagne, franc', '11-16 °C',
@@ -180,7 +191,7 @@ const PAR_COULEUR = {
       epice: 2, patesFruitsDeMer: 2, fromageDoux: 2 }),
   petillant: profil('bulles', '6-8 °C',
     { aperitif: 3, fruitsDeMer: 2, dessert: 1,
-      patesFruitsDeMer: 2, fromageDoux: 3, fromageFort: 1 }),
+      patesFruitsDeMer: 2, fromageDoux: 3, fromageFort: 2 }),
   liquoreux: profil('vin doux', '8-10 °C',
     { dessert: 3, fromageFort: 3 }),
   inconnu: profil('couleur à préciser dans la fiche', '', {}),
