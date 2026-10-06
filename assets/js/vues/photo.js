@@ -179,6 +179,22 @@ function zonePhoto(naviguer) {
     );
   }
 
+  // Savoir qui a lu change tout le jugement qu'on porte sur le résultat : le
+  // moteur embarqué bute sur un nom écrit en arc de cercle, le service de
+  // Google le redresse. Sans cette ligne, on croit l'application mauvaise là
+  // où c'est seulement la clé qui manque.
+  if (etat.etape === 'resultats' && etat.lecture) {
+    bloc.append(etat.lecture.parGoogle
+      ? el('p', { class: 'discret', text: 'Lu par le service de Google.' })
+      : el('p', { class: 'discret' }, [
+        el('span', { text: 'Lu par le moteur embarqué, qui déchiffre mal un nom écrit en arc de cercle. ' }),
+        el('button', {
+          type: 'button', class: 'bouton-lien', text: 'Activer la lecture améliorée',
+          onclick: () => naviguer('/reglages'),
+        }),
+      ]));
+  }
+
   // Le nom du domaine est souvent écrit en arc de cercle sur la face avant, ce
   // que le moteur lit très mal. La contre-étiquette répète les mêmes mots en
   // petit et bien droit, avec le degré et le volume en prime. L'offre reste
