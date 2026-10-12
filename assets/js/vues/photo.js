@@ -78,18 +78,33 @@ const CONSEIL_ARRIERE = 'Le nom du domaine est souvent écrit en arc de cercle d
  * l'appareil photo sur téléphone, son absence laisse choisir dans la
  * photothèque. Une seule entrée ne peut pas offrir les deux.
  */
-function entreePhoto({ id, libelle, nomIcone, classe, appareil, face, naviguer }) {
+function entreePhoto({
+  id, libelle, nomIcone, classe, appareil, face, naviguer, plusieurs = false,
+}) {
   const entree = el('input', {
     type: 'file',
     accept: 'image/*',
     capture: appareil ? 'environment' : null,
+    // Dans la photothèque on choisit les deux faces d'un coup. L'appareil
+    // photo, lui, ne rend qu'un cliché à la fois.
+    multiple: plusieurs ? '' : null,
     class: 'visuellement-cache',
     id,
   });
   entree.addEventListener('change', async () => {
-    const fichier = entree.files?.[0];
+    const fichiers = [...(entree.files || [])];
     entree.value = '';
-    if (fichier) await traiterPhoto(fichier, naviguer, face);
+    if (!fichiers.length) return;
+    // La première image choisie est l'avant, la seconde l'arrière. Au-delà
+    // de deux il n'y a rien à en faire : les suivantes sont ignorées, et on
+    // le dit plutôt que de les perdre en silence.
+    const lots = face === 'avant' && plusieurs && fichiers.length > 1
+      ? [['avant', fichiers[0]], ['arriere', fichiers[1]]]
+      : [[face, fichiers[0]]];
+    if (fichiers.length > lots.length) {
+      message(`${fichiers.length} photos choisies, les deux premières sont retenues`);
+    }
+    await traiterPhotos(lots, naviguer);
   });
   const declencheur = el('label', { class: `bouton ${classe} bouton-photo`, for: id });
   declencheur.append(icone(nomIcone), el('span', { text: libelle }));
@@ -123,6 +138,7 @@ function zonePhoto(naviguer) {
     // entrée ne peut pas offrir les deux.
     const source = (id, libelle, nomIcone, classe, appareil) => entreePhoto({
       id, libelle, nomIcone, classe, appareil, face: 'avant', naviguer,
+      plusieurs: !appareil,
     });
 
     bloc.append(
@@ -132,7 +148,11 @@ function zonePhoto(naviguer) {
       // une bouteille entière prise d'un mètre en rend six.
       el('p', { class: 'discret conseil-cadrage', text: CONSEIL_CADRAGE }),
       ...source('prise-de-vue', MODES[etat.mode].action, 'appareil', 'bouton-primaire', true),
-      ...source('choix-photo', 'Choisir une photo existante', 'image', '', false),
+      ...source('choix-photo', 'Choisir une ou deux photos', 'image', '', false),
+      el('p', {
+        class: 'discret conseil-cadrage',
+        text: 'Dans la photothèque, touchez l’avant puis l’arrière : les deux seront lues ensemble.',
+      }),
       el('button', {
         type: 'button', class: 'bouton-lien', text: 'Continuer sans photo',
         onclick: () => { etat.etape = 'resultats'; naviguer(null); },
@@ -148,6 +168,19 @@ function zonePhoto(naviguer) {
     el('div', { class: `photo-prise${faces.length > 1 ? ' photo-prise-deux' : ''}` }, [
       el('div', { class: 'photo-faces' }, faces),
       el('div', { class: 'photo-prise-actions' }, [
+        // L'ordre des deux faces vient de l'ordre où on les a touchées dans la
+        // photothèque, qu'on peut avoir inversé sans y penser. Les échanger
+        // vaut mieux que tout reprendre.
+        faces.length > 1
+          ? bouton('Échanger avant et arrière', {
+            onclick: () => {
+              const permute = etat.avant;
+              etat.avant = etat.arriere;
+              etat.arriere = permute;
+              naviguer(null);
+            },
+          })
+          : null,
         bouton('Tout reprendre', {
           icone: 'appareil',
           onclick: () => { reinitialiser(etat.mode); naviguer(null); },
@@ -240,20 +273,38 @@ function zonePhoto(naviguer) {
   return bloc;
 }
 
-async function traiterPhoto(fichier, naviguer, face = 'avant') {
+/** Range une face dans l'état. Rend vrai si la photo a bien été gardée. */
+async function rangerPhoto(face, fichier) {
   try {
     // La photo gardée dans la cave est réduite : c'est ce qu'il faut pour la
     // consulter, c'est trop peu pour lire une étiquette. On retient donc le
     // fichier tel que l'appareil l'a rendu, le temps de ce parcours.
     const cle = await photos.enregistrer(fichier);
     etat[face] = { cle, origine: fichier, apercu: await photos.url(cle) };
+    return true;
   } catch (erreur) {
     console.error(erreur);
     const raison = erreur?.name === 'NotReadableError' ? 'fichier illisible'
       : erreur?.message || 'raison inconnue';
     message(`Photo non enregistrée : ${raison}`, 'erreur');
-    return;
+    return false;
   }
+}
+
+/**
+ * Range une ou deux faces, puis enchaîne une seule fois.
+ *
+ * Deux photos choisies ensemble ne doivent déclencher qu'une lecture, et une
+ * seule navigation : les traiter l'une après l'autre en relançant tout à
+ * chaque fois lirait l'avant seul avant même que l'arrière soit rangé.
+ */
+async function traiterPhotos(lots, naviguer) {
+  let rangee = false;
+  for (const [face, fichier] of lots) {
+    if (await rangerPhoto(face, fichier)) rangee = true;
+  }
+  if (!rangee) return;
+
   if (photos.enMemoire()) {
     message('Photos gardées le temps de la session : ce navigateur refuse le stockage durable');
   }

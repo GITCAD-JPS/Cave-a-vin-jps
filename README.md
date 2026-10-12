@@ -116,7 +116,9 @@ une fois la photo réduite, et c'est pourquoi le cadrage pèse bien plus lourd
 que le téléphone.
 
 Les deux faces de la bouteille peuvent être photographiées, et sont alors lues
-ensemble. Ce n'est pas un confort : sur beaucoup d'étiquettes le nom du domaine
+ensemble. Depuis la photothèque elles se choisissent d'un seul geste, la
+première touchée étant l'avant, et un bouton les échange si l'ordre a été
+inversé. Ce n'est pas un confort : sur beaucoup d'étiquettes le nom du domaine
 est écrit en arc de cercle, ce que le moteur lit très mal, alors que la
 contre-étiquette répète les mêmes mots en petites lettres droites, avec le
 degré et le volume en prime. Mesuré sur une vraie bouteille de Corbières :
