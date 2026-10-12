@@ -143,10 +143,88 @@ async function demarrer() {
   suivreLesDonnees();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('sw.js').catch((erreur) => {
-      console.info('Mode hors ligne indisponible', erreur);
-    });
+    surveillerLesMisesAJour();
+    navigator.serviceWorker.register('sw.js')
+      .then((enregistrement) => enregistrement.update().catch(() => {}))
+      .catch((erreur) => {
+        console.info('Mode hors ligne indisponible', erreur);
+      });
   }
+}
+
+/**
+ * Prend la mise à jour dès qu'elle est publiée.
+ *
+ * S'en remettre aux événements du service worker revenait à dépendre d'un
+ * moment imprévisible : la page tournait déjà sur l'ancien code, et il fallait
+ * fermer puis rouvrir une seconde fois pour voir la nouvelle version, ce que
+ * personne ne devine. On demande donc nous-mêmes au serveur quelle version il
+ * publie, au démarrage et chaque fois que l'application revient au premier
+ * plan, ce qui est le moment où l'on rouvre son téléphone.
+ *
+ * Recharger sous les doigts de quelqu'un qui remplit une fiche lui ferait
+ * perdre sa saisie : tant qu'une modale est ouverte ou qu'un parcours photo
+ * est en cours, on attend, en le disant.
+ */
+function surveillerLesMisesAJour() {
+  let enCours = false;
+  let faite = false;
+
+  const appliquer = async () => {
+    if (faite) return;
+    faite = true;
+    // Installer le nouveau service worker avant de recharger, sans quoi la
+    // page reviendrait servie par l'ancien et rien n'aurait changé.
+    const enregistrement = await navigator.serviceWorker.getRegistration().catch(() => null);
+    await enregistrement?.update().catch(() => {});
+    location.reload();
+  };
+
+  const quandCestSur = () => {
+    const occupe = document.querySelector('dialog[open]')
+      || VUES_EN_COURS.some((prefixe) => cheminCourant().startsWith(prefixe));
+    if (!occupe) {
+      appliquer();
+      return;
+    }
+    proposerLaMiseAJour(appliquer);
+    document.addEventListener('close', () => {
+      if (!document.querySelector('dialog[open]')) quandCestSur();
+    }, { capture: true, once: true });
+  };
+
+  const verifier = async () => {
+    if (enCours || faite) return;
+    enCours = true;
+    try {
+      // Adresse unique et `no-store` : ni le cache du navigateur ni celui du
+      // service worker ne peuvent répondre à la place du serveur.
+      const reponse = await fetch(`sw.js?v=${Date.now()}`, { cache: 'no-store' });
+      if (!reponse.ok) return;
+      const publiee = (await reponse.text()).match(/cave-a-vin-v(\d+)/)?.[1];
+      if (publiee && publiee !== store.VERSION_APP) quandCestSur();
+    } catch (erreur) {
+      console.info('Version publiée inconnue', erreur);
+    } finally {
+      enCours = false;
+    }
+  };
+
+  verifier();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') verifier();
+  });
+}
+
+/** Bandeau discret quand la mise à jour doit attendre la fin d'une saisie. */
+function proposerLaMiseAJour(recharger) {
+  if (document.querySelector('.bandeau-maj')) return;
+  const bandeau = el('div', { class: 'bandeau-alerte bandeau-maj', role: 'status' }, [
+    el('strong', { text: 'Une mise à jour est prête. ' }),
+    el('span', { text: 'Elle s’appliquera dès que vous aurez terminé. ' }),
+    el('button', { type: 'button', class: 'bouton-lien', text: 'Recharger maintenant', onclick: recharger }),
+  ]);
+  document.body.prepend(bandeau);
 }
 
 /**

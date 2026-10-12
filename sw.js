@@ -1,7 +1,7 @@
 /* Service worker : la cave reste consultable sans réseau, y compris au sous-sol.
    Changez VERSION à chaque modification des fichiers pour forcer la mise à jour. */
 
-const VERSION = 'cave-a-vin-v40';
+const VERSION = 'cave-a-vin-v41';
 
 const COQUILLE = [
   './',
@@ -39,7 +39,14 @@ const COQUILLE = [
 self.addEventListener('install', (evenement) => {
   evenement.waitUntil((async () => {
     const cache = await caches.open(VERSION);
-    await cache.addAll(COQUILLE);
+    // `cache: 'reload'` saute le cache du navigateur. Sans cela, l'hébergeur
+    // ayant posé une durée de fraîcheur sur ses fichiers, une installation
+    // neuve pouvait garnir son cache avec les fichiers de la version d'avant.
+    await Promise.all(COQUILLE.map(async (chemin) => {
+      const reponse = await fetch(chemin, { cache: 'reload' });
+      if (!reponse.ok) throw new Error(`${chemin} : ${reponse.status}`);
+      await cache.put(chemin, reponse);
+    }));
     await self.skipWaiting();
   })());
 });
@@ -61,6 +68,10 @@ self.addEventListener('activate', (evenement) => {
 self.addEventListener('fetch', (evenement) => {
   const requete = evenement.request;
   if (requete.method !== 'GET' || !requete.url.startsWith(self.location.origin)) return;
+  // Un service worker qui se met lui-même en cache répond son propre passé :
+  // l'application interroge ce fichier pour savoir quelle version est
+  // publiée, et se faisait servir celle qu'elle cherchait à remplacer.
+  if (new URL(requete.url).pathname.endsWith('/sw.js')) return;
 
   // Navigation : on tente le réseau puis on retombe sur la page mise en cache.
   if (requete.mode === 'navigate') {
