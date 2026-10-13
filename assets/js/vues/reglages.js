@@ -6,6 +6,7 @@ import * as exporter from '../export.js';
 import * as store from '../store.js';
 import { appliquerTheme } from '../theme.js';
 import { CONFIGURATION } from '../nuage-configuration.js';
+import { testerLaCle } from '../vision.js';
 
 const THEMES = [
   { valeur: 'auto', libelle: 'Suivre le système' },
@@ -270,6 +271,33 @@ function reglageLecture(naviguer) {
     naviguer(null);
   };
 
+  // Une clé enregistrée n'est pas une clé qui marche. L'éprouver sur place
+  // évite de découvrir le problème plus tard, devant une étiquette, sans
+  // savoir si c'est la clé ou la photo qui est en cause.
+  const verdict = el('p', { class: 'discret verdict-cle' });
+  const eprouver = bouton('Vérifier la clé', {
+    classe: 'bouton',
+    onclick: async () => {
+      const valeur = saisie.value.trim() || store.preferences().cleVision || '';
+      if (!valeur) {
+        verdict.textContent = 'Collez d’abord une clé dans le champ ci-dessus.';
+        return;
+      }
+      eprouver.disabled = true;
+      verdict.textContent = 'Vérification…';
+      try {
+        const lu = await testerLaCle(valeur);
+        verdict.textContent = lu.toUpperCase().includes('CHATEAU')
+          ? '✓ Tout fonctionne : le mot d’essai a été lu correctement.'
+          : `Le service répond, mais le mot d’essai est rendu « ${lu || 'rien'} ».`;
+      } catch (erreur) {
+        verdict.textContent = `✗ Cela ne fonctionne pas : ${erreur?.message || 'raison inconnue'}.`;
+      } finally {
+        eprouver.disabled = false;
+      }
+    },
+  });
+
   const active = Boolean(store.preferences().cleVision);
   const morceaux = [
     el('p', {
@@ -300,6 +328,7 @@ function reglageLecture(naviguer) {
       bouton(active ? 'Remplacer la clé' : 'Activer', {
         classe: 'bouton bouton-primaire', onclick: enregistrer,
       }),
+      eprouver,
       active
         ? bouton('Retirer la clé', {
           classe: 'bouton bouton-danger-discret',
@@ -307,6 +336,7 @@ function reglageLecture(naviguer) {
         })
         : null,
     ]),
+    verdict,
     el('details', { class: 'details-techniques' }, [
       el('summary', { text: 'Comment obtenir la clé' }),
       el('ol', { class: 'liste-etapes' }, [

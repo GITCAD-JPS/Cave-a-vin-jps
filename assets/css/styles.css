@@ -1027,6 +1027,9 @@ select {
 }
 .ligne-entree { border-left: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); }
 
+/* Le verdict d'une vérification de clé doit sauter aux yeux. */
+.verdict-cle { margin-top: 0.6rem; font-weight: 600; color: var(--texte); }
+
 .conseil-cadrage {
   margin: 0;
   text-align: center;

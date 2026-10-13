@@ -65,6 +65,32 @@ async function preparer(image) {
 }
 
 /**
+ * Éprouve une clé sur une image fabriquée ici même.
+ *
+ * Une clé mal recopiée, mal restreinte ou dont le service n'est pas activé ne
+ * se signale sinon qu'à la première étiquette, par une lecture médiocre dont
+ * on ne sait pas si elle vient du moteur ou de la clé. Autant le savoir tout
+ * de suite, et savoir pourquoi.
+ *
+ * Rend le texte reconnu. Lève avec un message montrable tel quel.
+ */
+export async function testerLaCle(cle) {
+  const toile = document.createElement('canvas');
+  toile.width = 420;
+  toile.height = 160;
+  const dessin = toile.getContext('2d');
+  dessin.fillStyle = '#fff';
+  dessin.fillRect(0, 0, toile.width, toile.height);
+  dessin.fillStyle = '#000';
+  dessin.font = 'bold 72px serif';
+  dessin.fillText('CHATEAU', 20, 105);
+  const image = await new Promise((r) => toile.toBlob(r, 'image/jpeg', 0.95));
+  if (!image) throw new Error('image d’essai impossible à fabriquer');
+  const { texte } = await lireParGoogle([image], cle);
+  return texte.trim();
+}
+
+/**
  * Lit une ou plusieurs photos d'étiquette.
  *
  * Les deux faces partent dans un seul appel : le service traite chaque image
