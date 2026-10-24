@@ -78,13 +78,22 @@ export function pastillesValeurs(champs, formulaire) {
   ].filter(([, , valeur]) => valeur !== null && valeur !== undefined && valeur !== '');
   if (!proposees.length) return null;
 
+  // Le degré se lit « 14,5 % » mais s'écrit « 14.5 » dans un champ numérique,
+  // qui rejette la virgule sans rien dire : tout degré décimal se perdait en
+  // silence entre l'étiquette et la fiche.
+  const aEcrire = (champ, nom, texte) => {
+    if (nom !== 'degre') return texte;
+    const brut = String(champs.degre);
+    return champ.type === 'number' ? brut : brut.replace('.', ',');
+  };
+
   const pastilles = [];
   for (const [nom, libelle, valeur] of proposees) {
     const champ = formulaire.elements[nom];
     if (!champ) continue;
     const texte = String(valeur);
     if (!String(champ.value).trim()) {
-      champ.value = nom === 'degre' ? String(champs.degre).replace('.', ',') : texte;
+      champ.value = aEcrire(champ, nom, texte);
       continue;
     }
     if (String(champ.value).trim() === texte.trim()) continue;
@@ -93,7 +102,7 @@ export function pastillesValeurs(champs, formulaire) {
       class: 'etiquette etiquette-cliquable',
       text: `${libelle} ${texte}`,
       onclick: () => {
-        champ.value = nom === 'degre' ? String(champs.degre).replace('.', ',') : texte;
+        champ.value = aEcrire(champ, nom, texte);
         champ.focus();
       },
     }));

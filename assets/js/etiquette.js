@@ -236,13 +236,18 @@ export function extraireChamps(texte) {
     if (champs.degre < 4 || champs.degre > 22) delete champs.degre;
   }
 
-  const volume = brut.match(/\b(\d{2,4})\s*(cl|ml|l)\b/i);
-  if (volume) {
-    const nombre = Number(volume[1]);
-    const unite = volume[2].toLowerCase();
+  // Le « e » qui suit l'unité est l'estampille européenne, pas une faute de
+  // lecture : « 750 mle ». Et la première contenance trouvée n'est pas la
+  // bonne si la table nutritionnelle (« 100 ml : E = 342 Kj ») passe avant,
+  // d'où la recherche de la première valeur qui tienne dans des bornes de
+  // bouteille.
+  for (const trouve of brut.matchAll(/\b(\d{2,4})\s*(cl|ml|l)e?\b/gi)) {
+    const nombre = Number(trouve[1]);
+    const unite = trouve[2].toLowerCase();
     const centilitres = unite === 'ml' ? nombre / 10 : unite === 'l' ? nombre * 100 : nombre;
     if (centilitres >= 18 && centilitres <= 600) {
       champs.volume = centilitres === 150 ? '150 cl (Magnum)' : `${centilitres} cl`;
+      break;
     }
   }
 
@@ -268,6 +273,11 @@ const MENTIONS = [
   // le nom du vin.
   /denominaci[oó]n/i, /embotellado/i, /elaborado\s+(por|en)/i,
   /\bcosecha\b/i, /\bvendimia\b/i, /\bcrianza\s+en\b/i,
+  // Le consortium et la coopérative figurent en bonne place sur l'étiquette
+  // sans jamais nommer le vin : « Viticoltori delle Baronie » l'emportait sur
+  // « Rocca Rubia ».
+  /viticoltori/i, /cooperativ/i, /cantina\s+sociale/i, /cave\s+coop/i,
+  /vignerons\s+(de|du|des|r)/i, /viticulteurs/i, /winzergenossenschaft/i,
   /erzeugerabf[uü]llung/i, /gutsabf[uü]llung/i, /qualit[aä]tswein/i,
   /contient/i, /contains/i, /sulfit/i, /solfit/i, /sulphit/i,
   /agricultur/i, /biolog/i, /demeter/i,

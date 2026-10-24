@@ -1112,6 +1112,21 @@ select {
   background: var(--fond-doux);
 }
 
+/* Le formulaire est long et les propositions se posent près du champ photo,
+   tout en bas : sans ce signal, la lecture semblait n'avoir rien donné. */
+.lignes-lues.arrivee {
+  animation: arrivee-lecture 1.8s ease-out;
+}
+
+@keyframes arrivee-lecture {
+  0%, 60% { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-doux); }
+  100% { border-color: var(--bordure); box-shadow: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lignes-lues.arrivee { animation: none; border-color: var(--accent); }
+}
+
 .etiquette-cliquable {
   cursor: pointer;
   max-width: 100%;

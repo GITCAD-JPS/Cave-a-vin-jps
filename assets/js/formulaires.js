@@ -96,6 +96,17 @@ function proposerLecture(texte, formulaire, poser) {
   // dernière posée passe devant.
   if (lignes) poser(lignes);
   if (valeurs) poser(valeurs);
+
+  // Le champ photo est en bas d'un formulaire bien plus haut que l'écran d'un
+  // téléphone. Sans cela, les propositions arrivaient hors de vue et la
+  // lecture passait pour n'avoir rien donné.
+  const premier = valeurs || lignes;
+  if (premier) {
+    premier.classList.add('arrivee');
+    // Après la fermeture du dialogue qui a déclenché la lecture, sinon le
+    // défilement vise une page encore masquée.
+    setTimeout(() => premier.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+  }
   return Boolean(valeurs || lignes);
 }
 
@@ -143,7 +154,9 @@ function scannerLeTexte(declencheur, donnerFormulaire) {
             }
             nettoyerLesPastilles(champPhoto);
             const trouve = proposerLecture(texte, donnerFormulaire(), (n) => champPhoto.after(n));
-            message(trouve ? 'Texte repris' : 'Rien d’exploitable dans ce texte');
+            message(trouve
+              ? 'Texte repris — touchez les propositions pour remplir'
+              : 'Rien d’exploitable dans ce texte');
             fermer();
           },
         }),
