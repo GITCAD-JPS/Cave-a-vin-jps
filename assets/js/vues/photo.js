@@ -129,7 +129,7 @@ function facePrise(face, libelle, naviguer) {
   return el('div', { class: 'photo-face' }, morceaux);
 }
 
-const AIDE_SCANNER = 'Appuyez longuement dans le cadre ci-dessous, choisissez '
+const AIDE_SCANNER = 'Appuyez longuement dans le cadre vide ci-dessous, choisissez '
   + '« Scanner du texte », puis visez l’étiquette. L’iPhone y écrit ce qu’il lit. '
   + 'Vous pouvez aussi coller un texte copié depuis Photos, ou le taper.';
 
@@ -144,12 +144,25 @@ const AIDE_SCANNER = 'Appuyez longuement dans le cadre ci-dessous, choisissez '
  */
 function dialogueTexteEtiquette(naviguer) {
   dialogue('Texte de l’étiquette', (fermer) => {
+    // Le cadre s'ouvre vide, toujours : l'iPhone ne propose « Scanner du
+    // texte » que là où il n'y a rien à sélectionner. Prérempli, fût-ce par
+    // une lecture ratée, l'appui long n'offre plus que Couper / Copier, et
+    // l'option recherchée disparaît.
     const zone = el('textarea', {
       rows: '7',
       class: 'texte-etiquette',
       placeholder: 'Nom du domaine, appellation, millésime…',
       'aria-label': 'Texte lu sur l’étiquette',
-    }, etat.lecture?.texte || '');
+    });
+
+    const precedent = etat.lecture?.texte?.trim() || '';
+    const reprise = precedent ? bouton('Repartir de la lecture précédente', {
+      classe: 'bouton bouton-discret',
+      onclick: () => {
+        zone.value = precedent;
+        zone.focus();
+      },
+    }) : null;
 
     const valider = () => {
       const texte = zone.value.trim();
@@ -167,6 +180,7 @@ function dialogueTexteEtiquette(naviguer) {
     return [
       el('p', { class: 'discret', text: AIDE_SCANNER }),
       zone,
+      ...(reprise ? [reprise] : []),
       el('div', { class: 'formulaire-actions' }, [
         bouton('Annuler', { classe: 'bouton', onclick: fermer }),
         bouton('Reprendre ce texte', { classe: 'bouton bouton-primaire', onclick: valider }),
