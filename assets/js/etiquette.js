@@ -262,7 +262,13 @@ const BRUIT = new Set(['vino', 'vin', 'wine', 'rosso', 'bianco', 'rouge', 'blanc
 const MENTIONS = [
   /mis\s+en\s+bouteille/i, /imbottigliato/i, /bottled\s+(by|at)/i,
   /appellation/i, /origine\s+(prot|contr)/i, /denominazione/i,
-  /produit\s+de/i, /product\s+of/i, /prodotto/i,
+  /produit\s+de/i, /product\s+of/i, /prodotto/i, /producto\s+de/i,
+  // L'espagnol et l'allemand manquaient, et la cave en compte : sur une
+  // étiquette de Yecla, « denominación de origen protegida » l'emportait sur
+  // le nom du vin.
+  /denominaci[oó]n/i, /embotellado/i, /elaborado\s+(por|en)/i,
+  /\bcosecha\b/i, /\bvendimia\b/i, /\bcrianza\s+en\b/i,
+  /erzeugerabf[uü]llung/i, /gutsabf[uü]llung/i, /qualit[aä]tswein/i,
   /contient/i, /contains/i, /sulfit/i, /solfit/i, /sulphit/i,
   /agricultur/i, /biolog/i, /demeter/i,
   /est\s+situ/i, /is\s+located/i, /se\s+servir/i, /can\s+be\s+served/i,
