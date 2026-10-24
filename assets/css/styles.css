@@ -1028,6 +1028,20 @@ select {
 .ligne-entree { border-left: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); }
 
 /* Le verdict d'une vérification de clé doit sauter aux yeux. */
+/* Le cadre où l'iPhone écrit ce qu'il lit sur l'étiquette. */
+.texte-etiquette {
+  width: 100%;
+  margin: 0.6rem 0;
+  padding: 0.7rem;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
+  border: 1px solid var(--bordure);
+  border-radius: 0.5rem;
+  background: var(--fond-doux);
+  color: var(--texte);
+}
+
 .verdict-cle { margin-top: 0.6rem; font-weight: 600; color: var(--texte); }
 
 .conseil-cadrage {

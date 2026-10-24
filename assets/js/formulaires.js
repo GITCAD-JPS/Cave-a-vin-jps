@@ -82,6 +82,77 @@ function selecteurNote(valeurInitiale) {
  * issue du classeur.
  */
 /**
+ * Pose sous le champ photo ce qu'un texte d'étiquette a livré.
+ *
+ * Rend faux si rien d'exploitable n'en sort, pour que l'appelant le dise.
+ */
+function proposerLecture(texte, formulaire, poser) {
+  const champs = extraireChamps(texte);
+  const valeurs = pastillesValeurs(champs, formulaire);
+  const lignes = (champs.lignes || []).length
+    ? pastillesLignes(champs.lignes, formulaire)
+    : null;
+  // Posées à l'envers : chacune se glisse juste après le champ photo, donc la
+  // dernière posée passe devant.
+  if (lignes) poser(lignes);
+  if (valeurs) poser(valeurs);
+  return Boolean(valeurs || lignes);
+}
+
+/** Les pastilles déjà posées sous ce champ, qu'une nouvelle lecture remplace. */
+function nettoyerLesPastilles(champPhoto) {
+  let suivant = champPhoto.nextElementSibling;
+  while (suivant?.classList.contains('lignes-lues')) {
+    const apres = suivant.nextElementSibling;
+    suivant.remove();
+    suivant = apres;
+  }
+}
+
+/**
+ * Laisse l'iPhone lire l'étiquette, depuis la fiche d'un vin.
+ *
+ * « Scanner du texte », au long appui dans un champ, vise l'appareil photo et
+ * écrit ce qu'il reconnaît. C'est le meilleur lecteur dont dispose l'appareil,
+ * et il ne demande ni clé ni compte.
+ */
+function scannerLeTexte(declencheur, donnerFormulaire) {
+  const champPhoto = declencheur.closest('.champ') || declencheur.parentElement;
+  dialogue('Texte de l’étiquette', (fermer) => {
+    const zone = el('textarea', {
+      rows: '7', class: 'texte-etiquette',
+      placeholder: 'Nom du domaine, appellation, millésime…',
+      'aria-label': 'Texte lu sur l’étiquette',
+    });
+    return [
+      el('p', {
+        class: 'discret',
+        text: 'Appuyez longuement dans le cadre, choisissez « Scanner du texte », '
+          + 'puis visez l’étiquette. Vous pouvez aussi coller ou taper le texte.',
+      }),
+      zone,
+      el('div', { class: 'formulaire-actions' }, [
+        bouton('Annuler', { classe: 'bouton', onclick: fermer }),
+        bouton('Reprendre ce texte', {
+          classe: 'bouton bouton-primaire',
+          onclick: () => {
+            const texte = zone.value.trim();
+            if (!texte) {
+              message('Rien à reprendre : le cadre est vide');
+              return;
+            }
+            nettoyerLesPastilles(champPhoto);
+            const trouve = proposerLecture(texte, donnerFormulaire(), (n) => champPhoto.after(n));
+            message(trouve ? 'Texte repris' : 'Rien d’exploitable dans ce texte');
+            fermer();
+          },
+        }),
+      ]),
+    ];
+  }, { largeur: '34rem' });
+}
+
+/**
  * Relit la photo d'une face et propose ce qu'elle y trouve.
  *
  * Rien n'est écrasé sans un geste : un champ vide est rempli d'office, un
@@ -94,12 +165,7 @@ async function relireEtiquette(etatFace, declencheur, donnerFormulaire) {
   // après lui, dans le formulaire.
   const champPhoto = declencheur.closest('.champ') || declencheur.parentElement;
   const poser = (noeud) => champPhoto.after(noeud);
-  let precedent = champPhoto.nextElementSibling;
-  while (precedent?.classList.contains('lignes-lues')) {
-    const suivant = precedent.nextElementSibling;
-    precedent.remove();
-    precedent = suivant;
-  }
+  nettoyerLesPastilles(champPhoto);
   const libelle = declencheur.querySelector('span') || declencheur;
   const initial = libelle.textContent;
   declencheur.disabled = true;
@@ -113,17 +179,8 @@ async function relireEtiquette(etatFace, declencheur, donnerFormulaire) {
     });
     if (!lecture) throw new Error('le moteur de lecture n’a pas répondu');
 
-    const champs = extraireChamps(lecture.texte);
-    const formulaire = donnerFormulaire();
-    const valeurs = pastillesValeurs(champs, formulaire);
-    const lignes = (champs.lignes || []).length
-      ? pastillesLignes(champs.lignes, formulaire)
-      : null;
-    // Posées à l'envers : chacune se glisse juste après le champ photo, donc
-    // la dernière posée passe devant.
-    if (lignes) poser(lignes);
-    if (valeurs) poser(valeurs);
-    if (!valeurs && !lignes) message("Rien de sûr n'a pu être lu sur cette photo");
+    const trouve = proposerLecture(lecture.texte, donnerFormulaire(), poser);
+    if (!trouve) message("Rien de sûr n'a pu être lu sur cette photo");
     else message(lecture.parGoogle ? 'Étiquette relue' : 'Étiquette relue par le moteur embarqué');
   } catch (erreur) {
     console.info('Relecture impossible', erreur);
@@ -320,6 +377,12 @@ export function formulaireVin(vinExistant, { onEnregistre, brouillon } = {}) {
     champ('Note sur 5', selecteurNote(vin.notation)),
     champ("Photo de l'étiquette", photo.noeud),
     champ("Photo de l'étiquette arrière", arriere.noeud),
+    el('div', { class: 'rangee-boutons' }, [
+      bouton('Scanner le texte avec l’iPhone', {
+        classe: 'bouton bouton-discret',
+        onclick: (evenement) => scannerLeTexte(evenement.currentTarget, () => formulaire),
+      }),
+    ]),
     el('div', { class: 'formulaire-actions' }, [
       bouton('Annuler', { classe: 'bouton', onclick: () => onEnregistre(null) }),
       el('button', {

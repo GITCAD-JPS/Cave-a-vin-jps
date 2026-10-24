@@ -140,6 +140,19 @@ bouteille entière photographiée de loin bien moins, une vignette récupérée
 ailleurs pas du tout. L'écran de prise de vue le rappelle avant le
 déclenchement.
 
+### Laisser l'iPhone lire
+
+Le téléphone embarque son propre lecteur de texte, et c'est le meilleur dont
+l'appareil dispose : depuis n'importe quel champ de saisie, un appui long
+offre « Scanner du texte », vise l'appareil photo et écrit ce qu'il reconnaît.
+Ni clé, ni compte, ni facturation, et rien ne quitte l'appareil.
+
+Le parcours photo et le formulaire d'un vin proposent donc « Scanner le texte
+avec l'iPhone », qui ouvre un cadre où ce texte est attendu — scanné, collé
+depuis Photos, ou tapé. Il est ensuite traité exactement comme une lecture :
+millésime, degré et volume repris, lignes offertes en pastilles, rapprochement
+avec la cave. Aucune photo n'est nécessaire pour cela.
+
 ### Lecture améliorée
 
 Il reste une limite que le réglage ne franchit pas. Le moteur cherche des

@@ -129,6 +129,89 @@ function facePrise(face, libelle, naviguer) {
   return el('div', { class: 'photo-face' }, morceaux);
 }
 
+const AIDE_SCANNER = 'Appuyez longuement dans le cadre ci-dessous, choisissez '
+  + '« Scanner du texte », puis visez l’étiquette. L’iPhone y écrit ce qu’il lit. '
+  + 'Vous pouvez aussi coller un texte copié depuis Photos, ou le taper.';
+
+/**
+ * Laisse l'iPhone lire l'étiquette à notre place.
+ *
+ * Le moteur embarqué bute sur un nom écrit en arc de cercle, et le service de
+ * Google demande une clé, un compte et une facturation. Or le téléphone sait
+ * déjà très bien lire une étiquette : depuis n'importe quel champ de texte,
+ * « Scanner du texte » vise l'appareil photo et écrit ce qu'il reconnaît.
+ * Rien à installer, rien à payer, et rien ne quitte l'appareil.
+ */
+function dialogueTexteEtiquette(naviguer) {
+  dialogue('Texte de l’étiquette', (fermer) => {
+    const zone = el('textarea', {
+      rows: '7',
+      class: 'texte-etiquette',
+      placeholder: 'Nom du domaine, appellation, millésime…',
+      'aria-label': 'Texte lu sur l’étiquette',
+    }, etat.lecture?.texte || '');
+
+    const valider = () => {
+      const texte = zone.value.trim();
+      if (!texte) {
+        message('Rien à reprendre : le cadre est vide');
+        return;
+      }
+      etat.lecture = { texte, confiance: 95, parGoogle: false, saisi: true };
+      etat.champs = extraireChamps(texte);
+      etat.etape = 'resultats';
+      fermer();
+      naviguer(null);
+    };
+
+    return [
+      el('p', { class: 'discret', text: AIDE_SCANNER }),
+      zone,
+      el('div', { class: 'formulaire-actions' }, [
+        bouton('Annuler', { classe: 'bouton', onclick: fermer }),
+        bouton('Reprendre ce texte', { classe: 'bouton bouton-primaire', onclick: valider }),
+      ]),
+    ];
+  }, { largeur: '34rem' });
+}
+
+/**
+ * Qui a lu l'étiquette, et comment faire mieux.
+ *
+ * Savoir d'où vient le texte change tout le jugement qu'on porte sur lui : le
+ * moteur embarqué bute sur un nom écrit en arc de cercle, l'iPhone non. Sans
+ * cette ligne on croit l'application mauvaise là où c'est le lecteur.
+ */
+function noticeDeLecture(naviguer) {
+  if (etat.etape !== 'resultats' || !etat.lecture) return null;
+  if (etat.lecture.saisi) {
+    return el('div', { class: 'notice-lecture' }, [
+      el('p', { class: 'discret', text: 'Texte lu par votre iPhone.' }),
+      bouton('Corriger le texte', {
+        classe: 'bouton bouton-discret',
+        onclick: () => dialogueTexteEtiquette(naviguer),
+      }),
+    ]);
+  }
+  return el('div', { class: 'notice-lecture' }, [
+    etat.lecture.parGoogle
+      ? el('p', { class: 'discret', text: 'Lu par le service de Google.' })
+      : el('p', { class: 'discret' }, [
+        el('span', { text: 'Lu par le moteur embarqué, qui déchiffre mal un nom écrit en arc de cercle. ' }),
+        el('button', {
+          type: 'button', class: 'bouton-lien', text: 'Activer la lecture améliorée',
+          onclick: () => naviguer('/reglages'),
+        }),
+      ]),
+    // Une mauvaise lecture ne doit pas être une impasse : l'iPhone sait faire
+    // mieux, et c'est deux gestes.
+    bouton('Scanner le texte avec l’iPhone', {
+      classe: 'bouton bouton-discret',
+      onclick: () => dialogueTexteEtiquette(naviguer),
+    }),
+  ]);
+}
+
 function zonePhoto(naviguer) {
   const bloc = el('section', { class: 'bloc bloc-photo' });
 
@@ -149,6 +232,11 @@ function zonePhoto(naviguer) {
       el('p', { class: 'discret conseil-cadrage', text: CONSEIL_CADRAGE }),
       ...source('prise-de-vue', MODES[etat.mode].action, 'appareil', 'bouton-primaire', true),
       ...source('choix-photo', 'Choisir une ou deux photos', 'image', '', false),
+      bouton('Scanner le texte avec l’iPhone', {
+        icone: 'image',
+        classe: 'bouton bouton-photo',
+        onclick: () => dialogueTexteEtiquette(naviguer),
+      }),
       el('p', {
         class: 'discret conseil-cadrage',
         text: 'Dans la photothèque, touchez l’avant puis l’arrière : les deux seront lues ensemble.',
@@ -157,6 +245,7 @@ function zonePhoto(naviguer) {
         type: 'button', class: 'bouton-lien', text: 'Continuer sans photo',
         onclick: () => { etat.etape = 'resultats'; naviguer(null); },
       }),
+      noticeDeLecture(naviguer),
     );
     return bloc;
   }
@@ -216,17 +305,7 @@ function zonePhoto(naviguer) {
   // moteur embarqué bute sur un nom écrit en arc de cercle, le service de
   // Google le redresse. Sans cette ligne, on croit l'application mauvaise là
   // où c'est seulement la clé qui manque.
-  if (etat.etape === 'resultats' && etat.lecture) {
-    bloc.append(etat.lecture.parGoogle
-      ? el('p', { class: 'discret', text: 'Lu par le service de Google.' })
-      : el('p', { class: 'discret' }, [
-        el('span', { text: 'Lu par le moteur embarqué, qui déchiffre mal un nom écrit en arc de cercle. ' }),
-        el('button', {
-          type: 'button', class: 'bouton-lien', text: 'Activer la lecture améliorée',
-          onclick: () => naviguer('/reglages'),
-        }),
-      ]));
-  }
+  bloc.append(noticeDeLecture(naviguer));
 
   // Le nom du domaine est souvent écrit en arc de cercle sur la face avant, ce
   // que le moteur lit très mal. La contre-étiquette répète les mêmes mots en
