@@ -75,6 +75,8 @@ export function pastillesValeurs(champs, formulaire) {
     ['degre', 'degré', champs.degre === null || champs.degre === undefined
       ? null : `${String(champs.degre).replace('.', ',')} %`],
     ['volume', 'volume', champs.volume],
+    ['region', 'région', champs.region],
+    ['cepage', 'cépage', champs.cepage],
   ].filter(([, , valeur]) => valeur !== null && valeur !== undefined && valeur !== '');
   if (!proposees.length) return null;
 

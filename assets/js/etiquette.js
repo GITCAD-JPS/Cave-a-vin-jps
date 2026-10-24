@@ -221,6 +221,93 @@ const ANNEE_MIN = 1900;
 const ANNEE_MAX = new Date().getFullYear() + 1;
 
 /** Champs reconnaissables sans ambiguïté dans le texte d'une étiquette. */
+// La mention d'origine ne nomme pas l'appellation, elle la suit. Sur une
+// étiquette européenne, « Carignano del Sulcis » précède « Denominazione di
+// origine controllata », « Corbières » précède « Appellation d'origine
+// protégée », « Yecla » précède « Denominación de origen protegida ». C'est
+// la règle la plus fiable qu'on puisse tirer d'un texte sans mise en page.
+const SUIT_APPELLATION = /appellation|denominazione|denominaci[oó]n|origine\s+(prot|contr)|origen\s+(prot|calific)|\bd\.?o\.?c\.?g?\.?\b|\ba\.?o\.?[cp]\.?\b|\bi\.?g\.?[tp]\.?\b|\bd\.?o\.?ca\b|qualit[aä]tswein/i;
+
+// Les mots de la formule elle-même. Ce qu'il en reste est l'appellation :
+// « Appellation d'origine contrôlée Valais » ne laisse que « Valais ».
+const MOTS_FORMULE = new Set(['appellation', 'origine', 'origin', 'origen', 'denominazione',
+  'denominacion', 'denominazione', 'controllata', 'controlada', 'controlee', 'contrfilee',
+  'protegee', 'protegida', 'protetta', 'garantita', 'garantizada', 'calificada',
+  'qualitatswein', 'designation', 'protected', 'controlled', 'doc', 'docg', 'doca',
+  'aoc', 'aop', 'igt', 'igp', 'dop', 'de', 'di', 'da', 'du', 'des', 'the', 'of', 'et', 'e', 'y']);
+
+/** Ce que la ligne de mention nomme elle-même, une fois la formule retirée. */
+function appellationDansLaFormule(ligne) {
+  const restants = ligne
+    .replace(/[^\p{L}\p{N}'’\- ]/gu, ' ')
+    .split(/[\s'’]+/)
+    .filter((mot) => mot.length > 2 && !MOTS_FORMULE.has(sansAccent(mot).toLowerCase()));
+  if (!restants.length || restants.length > 4) return '';
+  return restants.join(' ');
+}
+
+/** L'appellation, cherchée dans la mention qui l'impose, puis juste au-dessus. */
+function appellationProbable(lignes) {
+  const rang = lignes.findIndex((ligne) => SUIT_APPELLATION.test(ligne));
+  if (rang < 0) return '';
+  const dedans = appellationDansLaFormule(lignes[rang]);
+  if (dedans) return dedans;
+  if (rang < 1) return '';
+  for (let i = rang - 1; i >= 0 && i >= rang - 2; i -= 1) {
+    const avant = lignes[i].replace(/[^\p{L}\p{N}'’\- ]/gu, ' ').replace(/\s+/g, ' ').trim();
+    if (avant.length < 4 || avant.length > 45) continue;
+    if (SUIT_APPELLATION.test(avant) || MENTIONS.some((m) => m.test(avant))) continue;
+    const mots = avant.split(' ');
+    if (mots.length > 5) continue;
+    if (!mots.some((m) => m.length > 3 && !BRUIT.has(sansAccent(m)))) continue;
+    return avant;
+  }
+  return '';
+}
+
+// Les cépages que l'on peut rencontrer dans une cave suisse. Les plus longs
+// d'abord : sans cela « sauvignon » emporterait « cabernet sauvignon ».
+const CEPAGES = [
+  ['cabernet sauvignon', 'Cabernet Sauvignon'], ['cabernet franc', 'Cabernet Franc'],
+  ['petite arvine', 'Petite Arvine'], ['pinot noir', 'Pinot Noir'], ['pinot nero', 'Pinot Nero'],
+  ['pinot grigio', 'Pinot Grigio'], ['pinot gris', 'Pinot Gris'], ['pinot blanc', 'Pinot Blanc'],
+  ['pinot bianco', 'Pinot Bianco'], ['nero d avola', 'Nero d’Avola'], ['nero davola', 'Nero d’Avola'],
+  ['touriga nacional', 'Touriga Nacional'], ['melon de bourgogne', 'Melon de Bourgogne'],
+  ['grenache blanc', 'Grenache Blanc'], ['sauvignon blanc', 'Sauvignon Blanc'],
+  ['chenin blanc', 'Chenin Blanc'], ['ugni blanc', 'Ugni Blanc'], ['muller thurgau', 'Müller-Thurgau'],
+  ['gewurztraminer', 'Gewürztraminer'], ['montepulciano', 'Montepulciano'], ['negroamaro', 'Negroamaro'],
+  ['tempranillo', 'Tempranillo'], ['sangiovese', 'Sangiovese'], ['vermentino', 'Vermentino'],
+  ['verdicchio', 'Verdicchio'], ['garganega', 'Garganega'], ['trebbiano', 'Trebbiano'],
+  ['chardonnay', 'Chardonnay'], ['sauvignon', 'Sauvignon'], ['carignano', 'Carignano'],
+  ['carignan', 'Carignan'], ['cannonau', 'Cannonau'], ['monastrell', 'Monastrell'],
+  ['mourvedre', 'Mourvèdre'], ['grenache', 'Grenache'], ['garnacha', 'Garnacha'],
+  ['aglianico', 'Aglianico'], ['primitivo', 'Primitivo'], ['nebbiolo', 'Nebbiolo'],
+  ['lambrusco', 'Lambrusco'], ['dolcetto', 'Dolcetto'], ['barbera', 'Barbera'],
+  ['corvina', 'Corvina'], ['malvasia', 'Malvasia'], ['moscato', 'Moscato'], ['muscat', 'Muscat'],
+  ['riesling', 'Riesling'], ['sylvaner', 'Sylvaner'], ['chasselas', 'Chasselas'],
+  ['humagne', 'Humagne'], ['cornalin', 'Cornalin'], ['amigne', 'Amigne'], ['gamaret', 'Gamaret'],
+  ['merlot', 'Merlot'], ['syrah', 'Syrah'], ['shiraz', 'Shiraz'], ['gamay', 'Gamay'],
+  ['cinsault', 'Cinsault'], ['malbec', 'Malbec'], ['tannat', 'Tannat'], ['viognier', 'Viognier'],
+  ['marsanne', 'Marsanne'], ['roussanne', 'Roussanne'], ['clairette', 'Clairette'],
+  ['semillon', 'Sémillon'], ['colombard', 'Colombard'], ['albarino', 'Albariño'],
+  ['verdejo', 'Verdejo'], ['macabeo', 'Macabeo'], ['graciano', 'Graciano'], ['mazuelo', 'Mazuelo'],
+  ['savagnin', 'Savagnin'], ['altesse', 'Altesse'], ['mondeuse', 'Mondeuse'], ['poulsard', 'Poulsard'],
+  ['trousseau', 'Trousseau'], ['chenin', 'Chenin'], ['glera', 'Glera'], ['pinotage', 'Pinotage'],
+  ['zinfandel', 'Zinfandel'], ['petit verdot', 'Petit Verdot'], ['nerello', 'Nerello'],
+];
+
+/** Les cépages nommés sur l'étiquette, au plus trois. */
+function cepagesProbables(texte) {
+  const plat = ` ${sansAccent(texte).toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
+  const trouves = [];
+  for (const [cle, affiche] of CEPAGES) {
+    if (trouves.includes(affiche)) continue;
+    if (plat.includes(` ${cle} `)) trouves.push(affiche);
+    if (trouves.length === 3) break;
+  }
+  return trouves;
+}
+
 export function extraireChamps(texte) {
   const brut = String(texte || '');
   const champs = {};
@@ -250,6 +337,13 @@ export function extraireChamps(texte) {
       break;
     }
   }
+
+  const brutes = brut.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const appellation = appellationProbable(brutes);
+  if (appellation) champs.region = appellation;
+
+  const cepages = cepagesProbables(brut);
+  if (cepages.length) champs.cepage = cepages.join(', ');
 
   champs.lignes = lignesCandidates(brut);
   return champs;
