@@ -143,6 +143,48 @@ const AIDE_SCANNER = 'Appuyez longuement dans le cadre vide ci-dessous, choisiss
  * « Scanner du texte » vise l'appareil photo et écrit ce qu'il reconnaît.
  * Rien à installer, rien à payer, et rien ne quitte l'appareil.
  */
+/**
+ * Montre le texte brut de la lecture.
+ *
+ * Sans cela, une mauvaise fiche ne dit pas où est la faute : dans ce que le
+ * service a lu, ou dans ce que l'application en tire. Le texte se copie, pour
+ * pouvoir être montré.
+ */
+function dialogueTexteLu() {
+  const brut = etat.lecture?.texte || '';
+  dialogue('Texte lu sur l’étiquette', (fermer) => {
+    const zone = el('textarea', {
+      rows: '12', class: 'texte-etiquette', readonly: 'readonly',
+      'aria-label': 'Texte brut de la lecture',
+    }, brut);
+    return [
+      el('p', {
+        class: 'discret',
+        text: etat.lecture?.parGoogle
+          ? 'Voici exactement ce que le service de Google a lu.'
+          : 'Voici exactement ce que la lecture a rendu.',
+      }),
+      zone,
+      el('div', { class: 'formulaire-actions' }, [
+        bouton('Fermer', { classe: 'bouton', onclick: fermer }),
+        bouton('Copier le texte', {
+          classe: 'bouton bouton-primaire',
+          onclick: async () => {
+            try {
+              await navigator.clipboard.writeText(brut);
+              message('Texte copié');
+            } catch {
+              zone.removeAttribute('readonly');
+              zone.select();
+              message('Sélectionnez et copiez le texte affiché');
+            }
+          },
+        }),
+      ]),
+    ];
+  }, { largeur: '34rem' });
+}
+
 function dialogueTexteEtiquette(naviguer) {
   dialogue('Texte de l’étiquette', (fermer) => {
     // Le cadre s'ouvre vide, toujours : l'iPhone ne propose « Scanner du
@@ -229,12 +271,18 @@ function noticeDeLecture(naviguer) {
             onclick: () => naviguer('/reglages'),
           }),
         ]),
-    // Une mauvaise lecture ne doit pas être une impasse : l'iPhone sait faire
-    // mieux, et c'est deux gestes.
-    bouton('Scanner le texte avec l’iPhone', {
-      classe: 'bouton bouton-discret',
-      onclick: () => dialogueTexteEtiquette(naviguer),
-    }),
+    el('div', { class: 'rangee-boutons' }, [
+      bouton('Voir le texte lu', {
+        classe: 'bouton bouton-discret',
+        onclick: () => dialogueTexteLu(),
+      }),
+      // Une mauvaise lecture ne doit pas être une impasse : l'iPhone sait faire
+      // mieux, et c'est deux gestes.
+      bouton('Scanner le texte avec l’iPhone', {
+        classe: 'bouton bouton-discret',
+        onclick: () => dialogueTexteEtiquette(naviguer),
+      }),
+    ]),
   ]);
 }
 

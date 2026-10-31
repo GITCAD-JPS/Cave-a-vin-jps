@@ -12,13 +12,21 @@
 // prendre le relais dès que ce service refuse ou que le réseau manque.
 
 const POINT = 'https://vision.googleapis.com/v1/images:annotate';
-// Le service facture à l'image, pas au pixel, et lit très bien à cette taille.
-// Plus grand ne fait qu'allonger l'envoi depuis un téléphone en cave.
-const COTE_ENVOI = 1600;
-const QUALITE_ENVOI = 0.85;
+// Le service facture à l'image et non au pixel, et sa documentation déconseille
+// de dégrader la qualité pour alléger un envoi : le texte d'une étiquette est
+// fin, et chaque pixel perdu l'est pour la lecture. On envoie donc grand, quitte
+// à redescendre si la requête dépasse ce que le service accepte.
+const COTES_ENVOI = [2600, 2000, 1500];
+const QUALITE_ENVOI = 0.92;
+// Le service refuse au-delà de 10 Mo, mais c'est le réseau d'une cave qui
+// décide ici : une photo d'étiquette bien compressée tient largement sous ce
+// seuil, et ce qui le dépasse part plus petit plutôt que de faire attendre.
+const POIDS_MAX = 4_000_000;
 // Une cave suisse mêle le français, l'italien et l'anglais des contre-étiquettes.
 const LANGUES = ['fr', 'it', 'en'];
-const DELAI = 20000;
+// Plus long qu'avant : les photos partent maintenant en plus grande taille, et
+// le réseau d'une cave n'est pas celui d'un salon.
+const DELAI = 30000;
 
 /** Les raisons de refus que l'on sait expliquer en français. */
 const EXPLICATIONS = {
@@ -41,11 +49,11 @@ function expliquer(charge, statut) {
   return `réponse inattendue (${statut})`;
 }
 
-/** La photo, réduite puis mise sous la forme que le service attend. */
-async function preparer(image) {
+/** La photo, mise à la taille voulue et sous la forme que le service attend. */
+async function preparer(image, cote) {
   const bitmap = await createImageBitmap(image, { imageOrientation: 'from-image' })
     .catch(() => createImageBitmap(image));
-  const facteur = Math.min(1, COTE_ENVOI / (Math.max(bitmap.width, bitmap.height) || 1));
+  const facteur = Math.min(1, cote / (Math.max(bitmap.width, bitmap.height) || 1));
   const toile = document.createElement('canvas');
   toile.width = Math.max(1, Math.round(bitmap.width * facteur));
   toile.height = Math.max(1, Math.round(bitmap.height * facteur));
@@ -103,11 +111,19 @@ export async function lireParGoogle(images, cle) {
   if (!photos.length) throw new Error('aucune photo à lire');
   if (!cle) throw new Error('aucune clé enregistrée');
 
-  const requetes = await Promise.all(photos.map(async (photo) => ({
-    image: { content: await preparer(photo) },
-    features: [{ type: 'TEXT_DETECTION' }],
-    imageContext: { languageHints: LANGUES },
-  })));
+  // On part de la plus grande taille et l'on ne redescend que si le service
+  // ne peut pas recevoir l'envoi.
+  let requetes = null;
+  for (const cote of COTES_ENVOI) {
+    const essai = await Promise.all(photos.map(async (photo) => ({
+      image: { content: await preparer(photo, cote) },
+      features: [{ type: 'TEXT_DETECTION' }],
+      imageContext: { languageHints: LANGUES },
+    })));
+    const poids = essai.reduce((somme, r) => somme + r.image.content.length, 0);
+    requetes = essai;
+    if (poids <= POIDS_MAX) break;
+  }
 
   const abandon = new AbortController();
   const minuteur = setTimeout(() => abandon.abort(), DELAI);
