@@ -37,6 +37,7 @@ function reinitialiser(mode) {
     mode, lecture: null, champs: null, etape: 'photo', abandon: false,
     // Les deux faces de la bouteille. L'avant suffit, l'arrière est un plus
     // que l'on propose sans jamais l'imposer.
+    refusGoogle: '',
     avant: { cle: '', apercu: '', origine: null },
     arriere: { cle: '', apercu: '', origine: null },
   };
@@ -210,13 +211,24 @@ function noticeDeLecture(naviguer) {
   return el('div', { class: 'notice-lecture' }, [
     etat.lecture.parGoogle
       ? el('p', { class: 'discret', text: 'Lu par le service de Google.' })
-      : el('p', { class: 'discret' }, [
-        el('span', { text: 'Lu par le moteur embarqué, qui déchiffre mal un nom écrit en arc de cercle. ' }),
-        el('button', {
-          type: 'button', class: 'bouton-lien', text: 'Activer la lecture améliorée',
-          onclick: () => naviguer('/reglages'),
-        }),
-      ]),
+      : el('p', { class: 'discret' }, etat.refusGoogle
+        ? [
+          el('span', {
+            text: `Google a refusé la lecture (${etat.refusGoogle}), c'est le moteur `
+              + 'embarqué qui a lu, et il déchiffre mal un nom en arc de cercle. ',
+          }),
+          el('button', {
+            type: 'button', class: 'bouton-lien', text: 'Vérifier la clé',
+            onclick: () => naviguer('/reglages'),
+          }),
+        ]
+        : [
+          el('span', { text: 'Lu par le moteur embarqué, qui déchiffre mal un nom écrit en arc de cercle. ' }),
+          el('button', {
+            type: 'button', class: 'bouton-lien', text: 'Activer la lecture améliorée',
+            onclick: () => naviguer('/reglages'),
+          }),
+        ]),
     // Une mauvaise lecture ne doit pas être une impasse : l'iPhone sait faire
     // mieux, et c'est deux gestes.
     bouton('Scanner le texte avec l’iPhone', {
@@ -451,6 +463,9 @@ async function lancerLecture(naviguer) {
     // fonctionne alors qu'elle est refusée. On le dit, une fois.
     if (cleVision && !lecture.parGoogle) {
       const raison = raisonDuRepli();
+      // Retenue, pas seulement annoncée : un message qui passe laisse croire
+      // à une lecture améliorée qui n'a pas eu lieu.
+      etat.refusGoogle = raison || 'raison inconnue';
       message(`Lecture améliorée indisponible${raison ? ` : ${raison}` : ''}`, 'erreur');
     } else if (!store.preferences().lectureAuto) {
       // Le moteur a répondu : les prochaines photos seront lues sans demander.
