@@ -228,20 +228,25 @@ const ANNEE_MAX = new Date().getFullYear() + 1;
 // la règle la plus fiable qu'on puisse tirer d'un texte sans mise en page.
 const SUIT_APPELLATION = /appellation|denominazione|denominaci[oó]n|origine\s+(prot|contr)|origen\s+(prot|calific)|\bd\.?o\.?c\.?g?\.?\b|\ba\.?o\.?[cp]\.?\b|\bi\.?g\.?[tp]\.?\b|\bd\.?o\.?ca\b|qualit[aä]tswein/i;
 
-// Les mots de la formule elle-même. Ce qu'il en reste est l'appellation :
-// « Appellation d'origine contrôlée Valais » ne laisse que « Valais ».
-const MOTS_FORMULE = new Set(['appellation', 'origine', 'origin', 'origen', 'denominazione',
-  'denominacion', 'denominazione', 'controllata', 'controlada', 'controlee', 'contrfilee',
-  'protegee', 'protegida', 'protetta', 'garantita', 'garantizada', 'calificada',
-  'qualitatswein', 'designation', 'protected', 'controlled', 'doc', 'docg', 'doca',
-  'aoc', 'aop', 'igt', 'igp', 'dop', 'de', 'di', 'da', 'du', 'des', 'the', 'of', 'et', 'e', 'y']);
+// La formule elle-même, reconnue par ses racines et non par ses mots entiers :
+// la lecture tronque volontiers, et « controllata » revenu en « controls »
+// passait alors pour le nom de l'appellation.
+const RACINES_FORMULE = ['appellation', 'denomin', 'origin', 'origen', 'control',
+  'contrfil', 'proteg', 'protett', 'garant', 'calific', 'qualitat', 'designat',
+  'kontroll', 'herkunft'];
+const MOTS_FORMULE = new Set(['doc', 'docg', 'doca', 'aoc', 'aop', 'igt', 'igp', 'dop',
+  'de', 'di', 'da', 'du', 'des', 'the', 'of', 'et', 'e', 'y', 'und', 'der', 'die']);
 
 /** Ce que la ligne de mention nomme elle-même, une fois la formule retirée. */
 function appellationDansLaFormule(ligne) {
   const restants = ligne
     .replace(/[^\p{L}\p{N}'’\- ]/gu, ' ')
     .split(/[\s'’]+/)
-    .filter((mot) => mot.length > 2 && !MOTS_FORMULE.has(sansAccent(mot).toLowerCase()));
+    .filter((mot) => {
+      const nu = sansAccent(mot).toLowerCase();
+      if (mot.length < 3 || MOTS_FORMULE.has(nu)) return false;
+      return !RACINES_FORMULE.some((racine) => nu.startsWith(racine));
+    });
   if (!restants.length || restants.length > 4) return '';
   return restants.join(' ');
 }
@@ -317,11 +322,21 @@ export function extraireChamps(texte) {
     .filter((a) => a >= ANNEE_MIN && a <= ANNEE_MAX);
   if (annees.length) champs.millesime = Math.max(...annees);
 
-  const degre = brut.match(/(\d{1,2})[.,](\d)\s*%|\b(\d{1,2})\s*%\s*vol/i);
-  if (degre) {
-    champs.degre = degre[1] ? Number(`${degre[1]}.${degre[2]}`) : Number(degre[3]);
-    if (champs.degre < 4 || champs.degre > 22) delete champs.degre;
+  // Dans l'ordre de fiabilité, car une étiquette porte d'autres pourcentages
+  // que le degré : « Sangiovese 90%, Merlot 10% » n'est pas un titre d'alcool.
+  const decimal = brut.match(/\b(\d{1,2})[.,](\d)\s*%/);
+  const entier = brut.match(/\b(\d{1,2})\s*%\s*vol/i);
+  // La virgule se perd souvent à la lecture : « 14,5% vol » revient en « 145% ».
+  // Trois chiffres ne sont repris que si la décimale rétablie tombe dans la
+  // fourchette où se tiennent les vins, ce qu'un pourcentage d'assemblage ne
+  // fait pas.
+  const colle = brut.match(/\b(\d{3})\s*%/);
+  if (decimal) champs.degre = Number(`${decimal[1]}.${decimal[2]}`);
+  else if (entier) champs.degre = Number(entier[1]);
+  else if (colle && Number(colle[1]) / 10 >= 10 && Number(colle[1]) / 10 <= 18) {
+    champs.degre = Number(colle[1]) / 10;
   }
+  if (champs.degre !== undefined && (champs.degre < 4 || champs.degre > 22)) delete champs.degre;
 
   // Le « e » qui suit l'unité est l'estampille européenne, pas une faute de
   // lecture : « 750 mle ». Et la première contenance trouvée n'est pas la
@@ -410,6 +425,8 @@ function lignesCandidates(texte) {
     .filter((ligne) => {
       if (ligne.length < 4 || ligne.length > 60) return false;
       if (MENTIONS.some((motif) => motif.test(ligne))) return false;
+      // Passé six mots on est dans la description du vin, pas dans son nom.
+      if (ligne.split(' ').length > 6) return false;
       const mots = ligne.split(' ').filter((m) => m.length > 2);
       if (!mots.length) return false;
       return mots.some((m) => !BRUIT.has(sansAccent(m)));
@@ -478,7 +495,8 @@ export function rapprocher(texte, candidats, { millesime = null, minimum = 0.2 }
 // l'un d'eux est presque toujours le nom du vin, et c'est ce qu'on cherche ici.
 const MARQUEURS_NOM = /^(domaine|chateau|château|clos|mas|maison|cave|caves|casa|cascina|tenuta|castello|azienda|cantina|bodega|weingut|quinta|finca|podere|villa|abbaye|manoir)\b/i;
 
-export function nomProbable(lignes = []) {
+export function nomProbable(lignes = [], { saufAppellation = '' } = {}) {
+  const appellation = sansAccent(saufAppellation).toLowerCase().trim();
   const notees = lignes.map((ligne, rang) => {
     const mots = ligne.split(' ');
     const utiles = mots.filter((m) => m.length > 3 && !MOTS_IGNORES.has(sansAccent(m)));
@@ -489,11 +507,15 @@ export function nomProbable(lignes = []) {
         // Une ligne toute en capitales est un titre, une ligne à moitié en
         // capitales est une phrase qui en contient.
         + (mots.length && capitales === mots.length ? 2 : 0)
-        // Ce qui est lu en premier vient du haut de la face avant.
-        + Math.max(0, 3 - rang * 0.5)
+        // Ce qui est lu en premier vient du haut de la face avant, là où le nom
+        // est écrit en grand. L'écart entre les premiers rangs était trop faible
+        // pour que « Sabbiato », en tête mais en cursive, batte « TOSCANA ».
+        + Math.max(0, 4 - rang)
         + (MARQUEURS_NOM.test(ligne) ? 3 : 0)
         // Passé quelques mots, on n'est plus devant un nom.
-        - Math.max(0, mots.length - 5) * 1.5,
+        - Math.max(0, mots.length - 5) * 1.5
+        // L'appellation a son propre champ.
+        - (appellation && sansAccent(ligne).toLowerCase().trim() === appellation ? 4 : 0),
     };
   });
   notees.sort((a, b) => b.score - a.score);

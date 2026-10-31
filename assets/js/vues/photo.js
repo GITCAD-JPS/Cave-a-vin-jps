@@ -611,13 +611,17 @@ function blocNouvelleFiche(naviguer) {
     millesime: champs.millesime ?? null,
     degre: champs.degre ?? null,
     volume: champs.volume || '75 cl',
-    nom: nomProbable(champs.lignes || []),
+    region: champs.region || '',
+    cepage: champs.cepage || '',
+    nom: nomProbable(champs.lignes || [], { saufAppellation: champs.region || '' }),
   };
 
   const resume = [];
   if (champs.millesime) resume.push(`millésime ${champs.millesime}`);
   if (champs.degre) resume.push(`${String(champs.degre).replace('.', ',')} %`);
   if (champs.volume) resume.push(champs.volume);
+  if (champs.region) resume.push(champs.region);
+  if (champs.cepage) resume.push(champs.cepage);
 
   return el('section', { class: 'bloc' }, [
     el('div', { class: 'bloc-entete' }, [el('h2', { text: 'Nouvelle fiche' })]),
