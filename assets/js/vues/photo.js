@@ -10,6 +10,7 @@ import { pastillesLignes, sousTitre, vignette } from '../composants.js';
 import {
   extraireChamps, lectureIndisponible, lireEtiquette, nomProbable, raisonDuRepli, rapprocher,
 } from '../etiquette.js';
+import { analyserDictee } from '../dictee.js';
 import { dialogueAjouterBouteilles, dialogueBoire, formulaireVin } from '../formulaires.js';
 import { filtrerVins } from '../model.js';
 import * as photos from '../photos.js';
@@ -35,9 +36,10 @@ let etat = null;
 function reinitialiser(mode) {
   etat = {
     mode, lecture: null, champs: null, etape: 'photo', abandon: false,
+    refusGoogle: '',
+    dictee: null,
     // Les deux faces de la bouteille. L'avant suffit, l'arrière est un plus
     // que l'on propose sans jamais l'imposer.
-    refusGoogle: '',
     avant: { cle: '', apercu: '', origine: null },
     arriere: { cle: '', apercu: '', origine: null },
   };
@@ -150,6 +152,79 @@ const AIDE_SCANNER = 'Appuyez longuement dans le cadre vide ci-dessous, choisiss
  * service a lu, ou dans ce que l'application en tire. Le texte se copie, pour
  * pouvoir être montré.
  */
+const AIDE_DICTEE = 'Appuyez sur le micro du clavier, puis dites la fiche d’un trait : '
+  + 'le nom, le millésime, la couleur, le degré, le nombre de bouteilles et où '
+  + 'elles vont. L’ordre est libre.';
+
+const EXEMPLE_DICTEE = 'Bolgheri Sabbiato de Sensi, région Toscane, 2021, rouge, '
+  + '14 degrés 5, deux bouteilles dans l’armoire';
+
+/** Ce que la dictée a compris, dit en clair avant de remplir quoi que ce soit. */
+function resumerDictee(dit) {
+  const LIBELLES = {
+    nom: 'nom', producteur: 'producteur', region: 'région', cepage: 'cépage',
+    couleur: 'couleur', millesime: 'millésime', degre: 'degré', volume: 'volume',
+    quantite: 'bouteilles', emplacement: 'rangement', source: 'acheté chez',
+    emplacementPrecis: 'emplacement', note: 'note',
+  };
+  const RANGEMENTS = { armoire: 'armoire', caveDroite: 'cave droite', caveGauche: 'cave gauche' };
+  return Object.entries(LIBELLES)
+    .filter(([cle]) => dit[cle] !== undefined && dit[cle] !== '')
+    .map(([cle, libelle]) => {
+      const valeur = cle === 'emplacement' ? RANGEMENTS[dit[cle]] || dit[cle]
+        : cle === 'degre' ? String(dit[cle]).replace('.', ',')
+          : dit[cle];
+      return `${libelle} ${valeur}`;
+    });
+}
+
+/**
+ * Dicter la fiche plutôt que la taper.
+ *
+ * L'iPhone écrit déjà sous la dictée : le micro du clavier suffit, et rien
+ * n'est à installer ni à autoriser. Ce qui manquait était de répartir la
+ * phrase dans les champs, ce dont `analyserDictee` se charge.
+ */
+function dialogueDictee(naviguer) {
+  dialogue('Dicter la fiche', (fermer) => {
+    const zone = el('textarea', {
+      rows: '5', class: 'texte-etiquette',
+      placeholder: EXEMPLE_DICTEE,
+      'aria-label': 'Fiche dictée',
+    });
+    const apercu = el('p', { class: 'discret' });
+    const rafraichir = () => {
+      const dit = zone.value.trim() ? analyserDictee(zone.value) : {};
+      const lu = resumerDictee(dit);
+      apercu.textContent = lu.length ? `Compris : ${lu.join(', ')}` : '';
+    };
+    zone.addEventListener('input', rafraichir);
+
+    return [
+      el('p', { class: 'discret', text: AIDE_DICTEE }),
+      zone,
+      apercu,
+      el('div', { class: 'formulaire-actions' }, [
+        bouton('Annuler', { classe: 'bouton', onclick: fermer }),
+        bouton('Reprendre', {
+          classe: 'bouton bouton-primaire',
+          onclick: () => {
+            const dit = analyserDictee(zone.value);
+            if (!Object.keys(dit).length) {
+              message('Rien à reprendre : le cadre est vide');
+              return;
+            }
+            etat.dictee = dit;
+            etat.etape = 'resultats';
+            fermer();
+            naviguer(null);
+          },
+        }),
+      ]),
+    ];
+  }, { largeur: '34rem' });
+}
+
 function dialogueTexteLu() {
   const brut = etat.lecture?.texte || '';
   dialogue('Texte lu sur l’étiquette', (fermer) => {
@@ -311,6 +386,10 @@ function zonePhoto(naviguer) {
         classe: 'bouton bouton-photo',
         onclick: () => dialogueTexteEtiquette(naviguer),
       }),
+      bouton('Dicter la fiche', {
+        classe: 'bouton bouton-photo',
+        onclick: () => dialogueDictee(naviguer),
+      }),
       el('p', {
         class: 'discret conseil-cadrage',
         text: 'Dans la photothèque, touchez l’avant puis l’arrière : les deux seront lues ensemble.',
@@ -347,6 +426,11 @@ function zonePhoto(naviguer) {
         bouton('Tout reprendre', {
           icone: 'appareil',
           onclick: () => { reinitialiser(etat.mode); naviguer(null); },
+        }),
+        // Une étiquette ne dit ni combien de bouteilles ont été achetées ni où
+        // elles vont : cela se dicte, et c'est ici qu'on y pense.
+        bouton(etat.dictee ? 'Reprendre la dictée' : 'Dicter la fiche', {
+          onclick: () => dialogueDictee(naviguer),
         }),
       ]),
     ]),
@@ -605,23 +689,33 @@ function resultatsAjout(naviguer) {
 
 function blocNouvelleFiche(naviguer) {
   const champs = etat.champs || {};
+  // Ce qui a été dicté l'a été exprès, et passe donc devant ce qui a été
+  // deviné sur l'étiquette.
+  const dit = etat.dictee || {};
   const brouillon = {
     photoLocale: etat.avant.cle,
     photoArriere: etat.arriere.cle,
-    millesime: champs.millesime ?? null,
-    degre: champs.degre ?? null,
-    volume: champs.volume || '75 cl',
-    region: champs.region || '',
-    cepage: champs.cepage || '',
-    nom: nomProbable(champs.lignes || [], { saufAppellation: champs.region || '' }),
+    millesime: dit.millesime ?? champs.millesime ?? null,
+    degre: dit.degre ?? champs.degre ?? null,
+    volume: dit.volume || champs.volume || '75 cl',
+    region: dit.region || champs.region || '',
+    cepage: dit.cepage || champs.cepage || '',
+    nom: dit.nom || nomProbable(champs.lignes || [], { saufAppellation: champs.region || '' }),
   };
+  for (const cle of ['producteur', 'couleur', 'note', 'source', 'emplacementPrecis']) {
+    if (dit[cle]) brouillon[cle] = dit[cle];
+  }
+  if (dit.quantite !== undefined) brouillon.quantite = dit.quantite;
+  // Dire « deux bouteilles dans l'armoire » range les deux, sans quoi le
+  // compte serait juste et la cave vide.
+  if (dit.emplacement) brouillon.emplacements = { [dit.emplacement]: dit.quantite ?? 1 };
 
-  const resume = [];
-  if (champs.millesime) resume.push(`millésime ${champs.millesime}`);
-  if (champs.degre) resume.push(`${String(champs.degre).replace('.', ',')} %`);
-  if (champs.volume) resume.push(champs.volume);
-  if (champs.region) resume.push(champs.region);
-  if (champs.cepage) resume.push(champs.cepage);
+  const resume = [...resumerDictee(dit)];
+  if (!dit.millesime && champs.millesime) resume.push(`millésime ${champs.millesime}`);
+  if (!dit.degre && champs.degre) resume.push(`${String(champs.degre).replace('.', ',')} %`);
+  if (!dit.volume && champs.volume) resume.push(champs.volume);
+  if (!dit.region && champs.region) resume.push(champs.region);
+  if (!dit.cepage && champs.cepage) resume.push(champs.cepage);
 
   return el('section', { class: 'bloc' }, [
     el('div', { class: 'bloc-entete' }, [el('h2', { text: 'Nouvelle fiche' })]),
@@ -631,7 +725,7 @@ function blocNouvelleFiche(naviguer) {
         class: 'discret',
         text: etat.lecture
           ? "Rien de sûr n'a pu être lu sur l'étiquette, les champs sont à remplir."
-          : 'Les champs sont à remplir à la main.',
+          : 'Les champs sont à remplir à la main, ou à dicter.',
       }),
     bouton('Créer la fiche', {
       icone: 'plus',
