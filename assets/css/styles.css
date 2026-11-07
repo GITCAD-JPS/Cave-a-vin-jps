@@ -1112,6 +1112,70 @@ select {
   background: var(--fond-doux);
 }
 
+/* --- mise à plat d'une étiquette ----------------------------------------- */
+
+.aplat-scene {
+  position: relative;
+  width: 100%;
+  margin: 0.6rem 0;
+  touch-action: none;           /* sinon la page défile au lieu du point */
+  user-select: none;
+}
+
+.aplat-scene img { display: block; width: 100%; border-radius: var(--rayon-petit); }
+
+.aplat-cadre {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.aplat-contour {
+  fill: color-mix(in srgb, var(--accent) 12%, transparent);
+  stroke: var(--accent);
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Assez grosse pour le doigt, et centrée sur le point qu'elle désigne. */
+.aplat-poignee {
+  position: absolute;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -1.375rem 0 0 -1.375rem;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.45);
+  cursor: grab;
+}
+
+.aplat-poignee::after {
+  content: '';
+  position: absolute;
+  inset: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.aplat-poignee.tenue { cursor: grabbing; transform: scale(1.15); }
+.aplat-poignee:focus-visible { outline: 3px solid var(--texte); outline-offset: 2px; }
+
+.aplat-apercu { margin: 0.6rem 0; }
+
+.aplat-apercu img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-petit);
+}
+
 /* Le formulaire est long et les propositions se posent près du champ photo,
    tout en bas : sans ce signal, la lecture semblait n'avoir rien donné. */
 .lignes-lues.arrivee {
