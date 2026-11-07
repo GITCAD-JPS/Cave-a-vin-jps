@@ -379,9 +379,25 @@ function dialogueAplatir(face, libelle, naviguer) {
             const blob = await new Promise((r2) => etatLocal.rendu.toBlob(r2, 'image/jpeg', 0.92));
             if (!blob) { message('Image impossible à enregistrer', 'erreur'); return; }
             const cle = await photos.enregistrer(blob);
-            etat[face] = { cle, origine: blob, apercu: await photos.url(cle), aplatie: true };
-            message('Étiquette mise à plat');
+            // La photo d'avant est gardée pour la lecture seulement : un cadre
+            // un peu juste coupe une lettre, et une lettre coupée ne se lit
+            // plus. Les deux images partent, le texte le plus complet gagne.
+            const avantAplat = etat[face].avantAplat
+              || { cle: etat[face].cle, origine: etat[face].origine };
+            etat[face] = {
+              cle, origine: blob, apercu: await photos.url(cle), aplatie: true, avantAplat,
+            };
             fermer();
+            // Une lecture déjà faite portait sur la photo d'avant : la refaire
+            // sur l'étiquette redressée, puisque c'est elle qu'on garde.
+            if (etat.lecture && !etat.lecture.saisi) {
+              message('Étiquette mise à plat, relecture en cours');
+              await lancerLecture(naviguer);
+              return;
+            }
+            message('Étiquette mise à plat');
+            // Sans lecture encore faite, on revient là où elle se propose.
+            if (etat.etape === 'resultats' && !etat.champs) etat.etape = 'proposition';
             naviguer(null);
           },
         }),
@@ -752,6 +768,12 @@ async function lancerLecture(naviguer) {
     const blob = etat[face].origine
       || await photos.lire(etat[face].cle).catch(() => null);
     if (blob) blobs.push(blob);
+    // Une face redressée part avec la photo dont elle vient : si la mise à
+    // plat a rogné un mot, l'autre image le porte encore.
+    const avant = etat[face].avantAplat;
+    if (!avant) continue;
+    const brut = avant.origine || await photos.lire(avant.cle).catch(() => null);
+    if (brut) blobs.push(brut);
   }
   const cleVision = store.preferences().cleVision || '';
   const lecture = blobs.length

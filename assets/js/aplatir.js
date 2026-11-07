@@ -211,11 +211,17 @@ export function reperesSurMesure(toile) {
   const boite = cernerEtiquette(toile);
   if (!boite) return reperesParDefaut(toile.width, toile.height);
   const { width: L, height: H } = toile;
-  const x0 = boite.x0 * L;
-  const x1 = boite.x1 * L;
+  // Un cadre un peu large laisse du fond sur les côtés, un cadre un peu juste
+  // coupe une lettre, et une lettre coupée ne se lit plus du tout : sur le
+  // Bolgheri, le « B » rogné faisait perdre le mot entier au moteur. D'où cette
+  // marge, qui vaut mieux pour la lecture que l'ajustement parfait.
+  const margeX = (boite.x1 - boite.x0) * 0.02;
+  const margeY = (boite.y1 - boite.y0) * 0.02;
+  const x0 = Math.max(0, boite.x0 - margeX) * L;
+  const x1 = Math.min(1, boite.x1 + margeX) * L;
   const xm = (x0 + x1) / 2;
-  const y0 = boite.y0 * H;
-  const y1 = boite.y1 * H;
+  const y0 = Math.max(0, boite.y0 - margeY) * H;
+  const y1 = Math.min(1, boite.y1 + margeY) * H;
   // La hauteur apparente d'une étiquette cylindrique se creuse au milieu du
   // bord haut et se bombe au bord bas, d'environ un vingtième de sa hauteur.
   const fleche = (y1 - y0) * 0.05;
