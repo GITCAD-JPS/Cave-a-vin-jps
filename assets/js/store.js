@@ -17,7 +17,7 @@ const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '54';
+export const VERSION_APP = '55';
 
 const etat = {
   vins: [],
@@ -385,15 +385,14 @@ function photoPartagee(cle, saufDegustation, saufVin) {
 // --- sauvegarde et restauration ---------------------------------------------
 
 export async function exporterJson({ avecPhotos = true } = {}) {
-  const clesPhotos = [...new Set([...etat.vins, ...etat.degustations]
-    .flatMap(clesPhotos))];
+  const cles = [...new Set([...etat.vins, ...etat.degustations].flatMap(clesPhotos))];
   return {
     application: 'cave-a-vin',
     version: VERSION_DONNEES,
     exporteLe: new Date().toISOString(),
     vins: etat.vins,
     degustations: etat.degustations,
-    photos: avecPhotos ? await photos.exporter(clesPhotos) : {},
+    photos: avecPhotos ? await photos.exporter(cles) : {},
   };
 }
 
