@@ -6,7 +6,7 @@
 // du partage rejoint.
 
 import {
-  EMPLACEMENTS, aujourdhui, entier, identifiant,
+  EMPLACEMENTS, aujourdhui, clesPhotos, entier, identifiant,
   normaliserDegustation, normaliserVin,
 } from './model.js';
 import * as photos from './photos.js';
@@ -17,7 +17,7 @@ const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '53';
+export const VERSION_APP = '54';
 
 const etat = {
   vins: [],
@@ -227,7 +227,7 @@ export function supprimerVin(id) {
   if (!vin) return false;
   // Les dégustations reprennent la photo du vin : on ne l'efface que si plus
   // personne ne s'en sert.
-  for (const cle of [vin.photoLocale, vin.photoArriere]) {
+  for (const cle of clesPhotos(vin)) {
     if (cle && !photoPartagee(cle, null, id)) photos.supprimer(cle).catch(() => {});
   }
   etat.vins = etat.vins.filter((v) => v.id !== id);
@@ -378,7 +378,7 @@ export function supprimerDegustation(id) {
 
 /** La photo `cle` sert-elle encore, en ignorant les fiches en cours de suppression ? */
 function photoPartagee(cle, saufDegustation, saufVin) {
-  return etat.vins.some((v) => (v.photoLocale === cle || v.photoArriere === cle) && v.id !== saufVin)
+  return etat.vins.some((v) => clesPhotos(v).includes(cle) && v.id !== saufVin)
     || etat.degustations.some((d) => d.photoLocale === cle && d.id !== saufDegustation);
 }
 
@@ -386,8 +386,7 @@ function photoPartagee(cle, saufDegustation, saufVin) {
 
 export async function exporterJson({ avecPhotos = true } = {}) {
   const clesPhotos = [...new Set([...etat.vins, ...etat.degustations]
-    .flatMap((fiche) => [fiche.photoLocale, fiche.photoArriere])
-    .filter(Boolean))];
+    .flatMap(clesPhotos))];
   return {
     application: 'cave-a-vin',
     version: VERSION_DONNEES,

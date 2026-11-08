@@ -9,7 +9,7 @@ import * as photos from './photos.js';
  * celles prises dans l'application viennent d'IndexedDB et sont résolues
  * après coup.
  */
-export function vignette(fiche, { taille = 'moyenne', face = 'avant' } = {}) {
+export function vignette(fiche, { taille = 'moyenne', face = 'avant', originale = false } = {}) {
   const cadre = el('div', { class: `vignette vignette-${taille} couleur-${fiche.couleur}` });
   const initiale = (fiche.nom || '?').trim().charAt(0).toUpperCase();
   cadre.append(el('span', { class: 'vignette-initiale', text: initiale, 'aria-hidden': 'true' }));
@@ -26,7 +26,11 @@ export function vignette(fiche, { taille = 'moyenne', face = 'avant' } = {}) {
     cadre.append(image);
   };
 
-  if (face === 'arriere') {
+  // La photo telle que prise, quand l'étiquette affichée a été mise à plat.
+  const origine = originale
+    && (face === 'arriere' ? fiche.photoArriereOriginale : fiche.photoOriginale);
+  if (origine) photos.url(origine).then(afficher);
+  else if (face === 'arriere') {
     if (fiche.photoArriere) photos.url(fiche.photoArriere).then(afficher);
   } else if (fiche.photoLocale) photos.url(fiche.photoLocale).then(afficher);
   else if (fiche.photo) afficher(fiche.photo);

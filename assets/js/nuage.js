@@ -11,6 +11,7 @@
 // quiconque obtient le code accède à la cave.
 
 import { CONFIGURATION } from './nuage-configuration.js';
+import { clesPhotos } from './model.js';
 
 const COLLECTIONS = { vins: 'vins', degustations: 'degustations', apercus: 'apercus' };
 const CLE_CODE = 'cave-a-vin.code.v1';
@@ -388,8 +389,9 @@ export async function remplacerTout({ vins, degustations }) {
   const gardes = new Set([...vins, ...degustations].map((f) => f.id));
   // Un aperçu que plus aucune fiche ne réclame n'a plus de raison d'occuper
   // une place : vider la cave doit aussi emporter ses images.
-  const photosGardees = new Set([...vins, ...degustations]
-    .map((f) => f.photoLocale).filter(Boolean));
+  // Toutes les faces : la contre-étiquette, oubliée ici, perdait son aperçu
+  // partagé à chaque restauration.
+  const photosGardees = new Set([...vins, ...degustations].flatMap(clesPhotos));
 
   await Promise.all([
     ...ancienVins.filter((f) => !gardes.has(f.id))

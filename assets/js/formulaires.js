@@ -6,6 +6,7 @@ import {
   COULEURS, EMPLACEMENTS, VOLUMES, aujourdhui, dateTriable, entier, nombreOuNull,
 } from './model.js';
 import { extraireChamps, lireEtiquette } from './etiquette.js';
+import { dialogueMiseAPlat } from './mise-a-plat.js';
 import * as photos from './photos.js';
 import * as store from './store.js';
 
@@ -185,9 +186,9 @@ async function relireEtiquette(etatFace, declencheur, donnerFormulaire) {
   libelle.textContent = 'Lecture…';
 
   try {
-    const blob = await blobDeLaFace(etatFace);
-    if (!blob) throw new Error('photo introuvable sur cet appareil');
-    const lecture = await lireEtiquette([blob], {
+    const blobs = await blobsDeLaFace(etatFace);
+    if (!blobs.length) throw new Error('photo introuvable sur cet appareil');
+    const lecture = await lireEtiquette(blobs, {
       cleVision: store.preferences().cleVision || '',
     });
     if (!lecture) throw new Error('le moteur de lecture n’a pas répondu');
@@ -211,11 +212,27 @@ async function blobDeLaFace(etat) {
   return null;
 }
 
+/**
+ * Ce qu'on donne à lire pour une face : l'étiquette telle qu'affichée, et la
+ * photo d'origine quand elle a été mise à plat, qui porte encore ce qu'un
+ * cadre un peu juste aurait rogné.
+ */
+async function blobsDeLaFace(etat) {
+  const blobs = [await blobDeLaFace(etat)];
+  if (etat.original) blobs.push(await photos.lire(etat.original).catch(() => null));
+  return blobs.filter(Boolean);
+}
+
 function selecteurPhoto(fiche, {
   champ = 'photoLocale', champStatique = 'photo', onRelire = null,
-  libelleRelecture = "Relire l'étiquette",
+  libelleRelecture = "Relire l'étiquette", champOriginal = '', libelleFace = 'Étiquette',
 } = {}) {
-  const etat = { photoLocale: fiche[champ] || '', photo: champStatique ? fiche[champStatique] || '' : '' };
+  const etat = {
+    photoLocale: fiche[champ] || '',
+    photo: champStatique ? fiche[champStatique] || '' : '',
+    // La photo telle que prise, quand celle qu'on affiche a été mise à plat.
+    original: champOriginal ? fiche[champOriginal] || '' : '',
+  };
   const apercu = el('div', { class: 'photo-apercu' });
   const idEntree = `photo-entree-${champ}-${Math.random().toString(36).slice(2, 8)}`;
   // Sans « capture », le téléphone propose l'appareil photo et la photothèque.
@@ -236,14 +253,49 @@ function selecteurPhoto(fiche, {
           onclick: (evenement) => onRelire(etat, evenement.currentTarget),
         }));
       }
+      if (champOriginal) {
+        apercu.append(bouton(etat.original ? 'Remettre à plat' : 'Mettre à plat', {
+          classe: 'bouton bouton-discret',
+          onclick: () => mettreAPlat(),
+        }));
+        if (etat.original) {
+          apercu.append(
+            el('p', { class: 'discret', text: 'Étiquette mise à plat, photo d’origine conservée.' }),
+            bouton('Revenir à la photo d’origine', {
+              classe: 'bouton bouton-discret',
+              onclick: () => { etat.photoLocale = etat.original; etat.original = ''; rafraichir(); },
+            }),
+          );
+        }
+      }
       apercu.append(bouton('Retirer', {
         classe: 'bouton bouton-discret',
-        onclick: () => { etat.photoLocale = ''; etat.photo = ''; rafraichir(); },
+        onclick: () => { etat.photoLocale = ''; etat.photo = ''; etat.original = ''; rafraichir(); },
       }));
     } else {
       apercu.append(el('p', { class: 'discret', text: 'Aucune photo' }));
     }
   };
+
+  // On redresse toujours la photo prise, jamais une étiquette déjà mise à
+  // plat : la redresser une seconde fois la déformerait.
+  const mettreAPlat = () => dialogueMiseAPlat({
+    titre: `Mettre à plat — ${libelleFace.toLowerCase()}`,
+    libelle: libelleFace,
+    charger: () => (etat.original ? photos.lire(etat.original) : blobDeLaFace(etat)),
+    onGarder: async (blob) => {
+      if (!etat.original) {
+        // Une photo livrée avec le classeur n'a pas de clé : elle en prend une
+        // pour pouvoir être gardée à côté de l'étiquette redressée.
+        etat.original = etat.photoLocale
+          || (etat.photo ? await photos.enregistrer(await (await fetch(etat.photo)).blob()) : '');
+      }
+      etat.photoLocale = await photos.enregistrer(blob);
+      etat.photo = '';
+      await rafraichir();
+      message('Étiquette mise à plat. Enregistrez la fiche pour la garder.');
+    },
+  });
 
   entree.addEventListener('change', async () => {
     const fichier = entree.files?.[0];
@@ -252,6 +304,8 @@ function selecteurPhoto(fiche, {
       const cle = await photos.enregistrer(fichier);
       etat.photoLocale = cle;
       etat.photo = '';
+      // Une nouvelle photo est sa propre origine.
+      etat.original = '';
       await rafraichir();
     } catch (erreur) {
       console.error(erreur);
@@ -295,12 +349,14 @@ export function formulaireVin(vinExistant, { onEnregistre, brouillon } = {}) {
   const relire = (etatFace, declencheur) => relireEtiquette(etatFace, declencheur, () => formulaire);
   const photo = selecteurPhoto(vin, {
     onRelire: relire, libelleRelecture: "Relire l'étiquette avant",
+    champOriginal: 'photoOriginale', libelleFace: 'Étiquette avant',
   });
   // La contre-étiquette porte le degré, le volume et la description. Elle est
   // facultative, et n'a pas d'équivalent dans le classeur d'origine.
   const arriere = selecteurPhoto(vin, {
     champ: 'photoArriere', champStatique: '', onRelire: relire,
     libelleRelecture: "Relire l'étiquette arrière",
+    champOriginal: 'photoArriereOriginale', libelleFace: 'Étiquette arrière',
   });
 
   const champsEmplacement = EMPLACEMENTS.map(({ cle, libelle }) => {
@@ -437,6 +493,8 @@ export function formulaireVin(vinExistant, { onEnregistre, brouillon } = {}) {
       photo: photo.etat.photo,
       photoLocale: photo.etat.photoLocale,
       photoArriere: arriere.etat.photoLocale,
+      photoOriginale: photo.etat.original,
+      photoArriereOriginale: arriere.etat.original,
       statut: texteSaisi(formulaire, 'statut') === 'termine' ? 'termine' : 'en-cave',
     };
     const enregistre = creation ? store.ajouterVin(champs) : store.modifierVin(vin.id, champs);

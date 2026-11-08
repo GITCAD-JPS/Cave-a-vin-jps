@@ -233,9 +233,25 @@ function historique(vin, naviguer) {
 
 function agrandirPhoto(vin) {
   dialogue(vin.nom, () => {
-    const faces = [vignette(vin, { taille: 'plein' })];
-    // La contre-étiquette porte la description du vin et les mentions légales.
-    if (vin.photoArriere) faces.push(vignette(vin, { taille: 'plein', face: 'arriere' }));
-    return el('div', { class: `photo-plein${faces.length > 1 ? ' photo-plein-deux' : ''}` }, faces);
+    const zone = el('div');
+    const aOrigine = Boolean(vin.photoOriginale || vin.photoArriereOriginale);
+    let originale = false;
+    const dessiner = () => {
+      vider(zone);
+      const faces = [vignette(vin, { taille: 'plein', originale })];
+      // La contre-étiquette porte la description du vin et les mentions légales.
+      if (vin.photoArriere) faces.push(vignette(vin, { taille: 'plein', face: 'arriere', originale }));
+      zone.append(el('div', { class: `photo-plein${faces.length > 1 ? ' photo-plein-deux' : ''}` }, faces));
+      // Les étiquettes mises à plat se montrent d'abord, les photos prises
+      // restent à un geste.
+      if (aOrigine) {
+        zone.append(bouton(originale ? 'Voir les étiquettes à plat' : 'Voir les photos d’origine', {
+          classe: 'bouton bouton-discret',
+          onclick: () => { originale = !originale; dessiner(); },
+        }));
+      }
+    };
+    dessiner();
+    return zone;
   }, { largeur: '40rem' });
 }

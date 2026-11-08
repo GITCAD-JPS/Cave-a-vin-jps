@@ -26,6 +26,16 @@ export const libelleEmplacement = (cle) => LIBELLE_EMPLACEMENT.get(cle) || cle;
 
 // --- utilitaires ------------------------------------------------------------
 
+/**
+ * Toutes les photos qu'une fiche réclame.
+ *
+ * Une seule liste, pour que la sauvegarde, la suppression et le partage ne
+ * puissent pas en oublier une : la contre-étiquette l'avait déjà été une fois.
+ */
+export const clesPhotos = (fiche) => [
+  fiche.photoLocale, fiche.photoArriere, fiche.photoOriginale, fiche.photoArriereOriginale,
+].filter(Boolean);
+
 /** Minuscules sans accents, pour comparer et rechercher. */
 export function sansAccent(valeur) {
   return String(valeur ?? '')
@@ -115,6 +125,10 @@ export function normaliserVin(brut = {}) {
     // La contre-étiquette, quand elle a été prise : elle porte souvent le
     // degré, le volume et la description que la face avant tait.
     photoArriere: String(brut.photoArriere ?? '').trim(),
+    // Les photos telles que prises, quand l'étiquette a été mise à plat : la
+    // vue redressée est plus belle, mais on garde ce qu'on a vraiment vu.
+    photoOriginale: String(brut.photoOriginale ?? '').trim(),
+    photoArriereOriginale: String(brut.photoArriereOriginale ?? '').trim(),
     // Posée à la création et jamais retouchée, contrairement à `modifieLe`
     // qu'une quantité corrigée déplace. C'est elle qui date l'entrée en cave.
     creeLe: String(brut.creeLe ?? '').trim(),
