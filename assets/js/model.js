@@ -89,6 +89,16 @@ export function aujourdhui() {
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
+/**
+ * Date du jour au format « AAAA-MM-JJ » d'un champ de date, à l'heure locale.
+ * `toISOString` donne l'heure de Greenwich : entre minuit et deux heures en
+ * Suisse, il proposait la veille.
+ */
+export function jourIso(date = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
+}
+
 // --- normalisation ----------------------------------------------------------
 
 // `modifieLe` porte l'heure à laquelle un appareil a touché la fiche, et reste
@@ -243,8 +253,11 @@ function comparer(tri) {
       return (a, b) => (b.notation ?? -1) - (a.notation ?? -1) || parNom(a, b);
     // Les fiches venues du classeur n'ont pas de date de modification : elles
     // se rangent derrière, par ordre alphabétique, plutôt qu'en désordre.
+    // La date d'entrée, pas celle de la dernière retouche : boire une bouteille
+    // d'un vin ancien le faisait passer devant celui qu'on venait d'ajouter.
     case 'ajout-desc':
-      return (a, b) => String(b.modifieLe || '').localeCompare(String(a.modifieLe || ''))
+      return (a, b) => String(b.creeLe || b.modifieLe || '')
+        .localeCompare(String(a.creeLe || a.modifieLe || ''))
         || parNom(a, b);
     default:
       return parNom;
@@ -361,7 +374,13 @@ function additionner(elements, cle, poids) {
 export function statistiques(vins, degustations) {
   const enCave = vins.filter((v) => v.statut === 'en-cave');
   const bouteilles = enCave.reduce((total, v) => total + v.quantite, 0);
-  const notes = vins.map((v) => v.notation).filter((n) => n !== null);
+  // Boire une bouteille recopie sa note sur la fiche du vin : compter les deux
+  // la faisait peser double dans la moyenne. La fiche ne compte que pour les
+  // vins jamais notés en dégustation.
+  const notesEnDegustation = new Set(degustations
+    .filter((d) => d.notation !== null && d.vinId).map((d) => d.vinId));
+  const notes = vins.filter((v) => !notesEnDegustation.has(v.id))
+    .map((v) => v.notation).filter((n) => n !== null);
   const notesDegustations = degustations.map((d) => d.notation).filter((n) => n !== null);
   const toutesNotes = [...notes, ...notesDegustations];
 

@@ -45,6 +45,9 @@ function construireCoquille() {
     placeholder: 'Rechercher un vin, un producteur, une région…',
     'aria-label': 'Rechercher dans la cave',
   });
+  // La recherche survit à l'ouverture d'une fiche, le champ doit donc la
+  // montrer au retour : vide, il laissait une liste filtrée sans raison visible.
+  recherche.value = filtres.recherche;
   let minuteur = null;
   recherche.addEventListener('input', () => {
     clearTimeout(minuteur);

@@ -36,7 +36,8 @@ export function rendre(conteneur, { naviguer }) {
     try {
       const paquet = await exporter.lireFichierJson(fichier);
       const bilan = await store.importerJson(paquet);
-      message(`Sauvegarde restaurée : ${bilan.vins} vins, ${bilan.degustations} dégustations`);
+      message(`Sauvegarde restaurée : ${bilan.vins} vins, ${bilan.degustations} dégustations`
+        + (bilan.publie ? '' : '. La cave partagée le sera dès que le réseau reviendra'));
       naviguer('/cave');
     } catch (erreur) {
       console.error(erreur);
@@ -116,8 +117,10 @@ export function rendre(conteneur, { naviguer }) {
             );
             if (!accord) return;
             try {
-              await store.vider();
-              message('Cave vidée');
+              const { publie } = await store.vider();
+              message(publie
+                ? 'Cave vidée'
+                : 'Cave vidée sur cet appareil. La cave partagée le sera dès que le réseau reviendra');
               naviguer('/cave');
             } catch (erreur) {
               console.error(erreur);

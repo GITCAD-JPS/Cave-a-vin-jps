@@ -220,7 +220,10 @@ function dialogueDictee(naviguer) {
               return;
             }
             etat.dictee = dit;
-            etat.etape = 'resultats';
+            // La fiche dictée est prête à créer. Si l'étiquette n'a pas encore
+            // été lue, sa lecture reste proposée à côté : dicter la complète,
+            // ne la remplace pas.
+            if (etat.etape !== 'lecture') etat.etape = 'resultats';
             fermer();
             naviguer(null);
           },
@@ -479,6 +482,16 @@ function zonePhoto(naviguer) {
   // La lecture de l'étiquette télécharge un moteur de reconnaissance de
   // plusieurs méga-octets la première fois. On ne l'impose pas : l'utilisateur
   // décide, puis le choix est retenu.
+  // Proposée aussi tant qu'aucune lecture n'a eu lieu : après une dictée, ou
+  // après avoir continué sans lire, on doit pouvoir y revenir.
+  const pasEncoreLue = etat.etape === 'resultats' && !etat.lecture && Boolean(etat.avant.cle);
+  if (pasEncoreLue) {
+    bloc.append(bouton(etat.arriere.cle ? 'Lire les deux étiquettes' : "Lire l'étiquette", {
+      icone: 'appareil',
+      classe: 'bouton',
+      onclick: () => lancerLecture(naviguer),
+    }));
+  }
   if (etat.etape === 'proposition') {
     bloc.append(
       bouton(etat.arriere.cle ? 'Lire les deux étiquettes' : "Lire l'étiquette", {
@@ -586,7 +599,9 @@ async function traiterPhotos(lots, naviguer) {
     message('Photos gardées le temps de la session : ce navigateur refuse le stockage durable');
   }
   // Inutile de reproposer une lecture dont on sait qu'elle ne marche pas ici.
-  if (lectureIndisponible()) {
+  // Sauf avec une clé Google : sa lecture ne dépend pas du moteur embarqué
+  // qui a fait défaut.
+  if (lectureIndisponible() && !store.preferences().cleVision) {
     etat.etape = 'resultats';
     naviguer(null);
     return;
@@ -600,9 +615,18 @@ async function traiterPhotos(lots, naviguer) {
 }
 
 async function lancerLecture(naviguer) {
-  etat.etape = 'lecture';
-  etat.progres = 0;
+  // La lecture appartient au parcours qui l'a demandée. Celui-ci peut être
+  // quitté (Retour), recommencé (Tout reprendre) ou laissé de côté (Passer)
+  // pendant qu'elle tourne : elle ne touche alors plus à rien. Le jeton écarte
+  // aussi une lecture ancienne que l'on aurait relancée entre-temps.
+  const moi = etat;
+  const jeton = (moi.jetonLecture || 0) + 1;
+  moi.jetonLecture = jeton;
+  moi.abandon = false;
+  moi.etape = 'lecture';
+  moi.progres = 0;
   naviguer(null);
+  const encoreAttendue = () => etat === moi && moi.jetonLecture === jeton && !moi.abandon;
 
   // La photo d'origine porte bien plus de détail que la copie gardée en cave,
   // et c'est ce détail qui fait la différence sur une étiquette. Le repli sur
@@ -610,13 +634,13 @@ async function lancerLecture(naviguer) {
   // muette si ce parcours venait à changer.
   const blobs = [];
   for (const face of ['avant', 'arriere']) {
-    if (!etat[face].cle && !etat[face].origine) continue;
-    const blob = etat[face].origine
-      || await photos.lire(etat[face].cle).catch(() => null);
+    if (!moi[face].cle && !moi[face].origine) continue;
+    const blob = moi[face].origine
+      || await photos.lire(moi[face].cle).catch(() => null);
     if (blob) blobs.push(blob);
     // Une face redressée part avec la photo dont elle vient : si la mise à
     // plat a rogné un mot, l'autre image le porte encore.
-    const avant = etat[face].avantAplat;
+    const avant = moi[face].avantAplat;
     if (!avant) continue;
     const brut = avant.origine || await photos.lire(avant.cle).catch(() => null);
     if (brut) blobs.push(brut);
@@ -626,7 +650,8 @@ async function lancerLecture(naviguer) {
     ? await lireEtiquette(blobs, {
       cleVision,
       onProgres: (p) => {
-        etat.progres = p;
+        if (!encoreAttendue()) return;
+        moi.progres = p;
         const barre = document.querySelector('.progression-valeur');
         if (barre) barre.style.width = `${Math.round(p * 100)}%`;
       },
@@ -634,7 +659,7 @@ async function lancerLecture(naviguer) {
     : null;
 
   // L'utilisateur a pu renoncer pendant que le moteur cherchait ses morceaux.
-  if (etat.abandon) return;
+  if (!encoreAttendue()) return;
 
   if (lecture) {
     // Un repli silencieux laisserait croire que la lecture améliorée
@@ -643,7 +668,7 @@ async function lancerLecture(naviguer) {
       const raison = raisonDuRepli();
       // Retenue, pas seulement annoncée : un message qui passe laisse croire
       // à une lecture améliorée qui n'a pas eu lieu.
-      etat.refusGoogle = raison || 'raison inconnue';
+      moi.refusGoogle = raison || 'raison inconnue';
       message(`Lecture améliorée indisponible${raison ? ` : ${raison}` : ''}`, 'erreur');
     } else if (!store.preferences().lectureAuto) {
       // Le moteur a répondu : les prochaines photos seront lues sans demander.
@@ -656,9 +681,9 @@ async function lancerLecture(naviguer) {
     message("La lecture d'étiquette n'est pas disponible ici, choisissez à la main", 'erreur');
   }
 
-  etat.lecture = lecture;
-  etat.champs = lecture ? extraireChamps(lecture.texte) : null;
-  etat.etape = 'resultats';
+  moi.lecture = lecture;
+  moi.champs = lecture ? extraireChamps(lecture.texte) : null;
+  moi.etape = 'resultats';
   naviguer(null);
 }
 
@@ -759,17 +784,24 @@ function blocNouvelleFiche(naviguer) {
   // compte serait juste et la cave vide.
   if (dit.emplacement) brouillon.emplacements = { [dit.emplacement]: dit.quantite ?? 1 };
 
-  const resume = [...resumerDictee(dit)];
-  if (!dit.millesime && champs.millesime) resume.push(`millésime ${champs.millesime}`);
-  if (!dit.degre && champs.degre) resume.push(`${String(champs.degre).replace('.', ',')} %`);
-  if (!dit.volume && champs.volume) resume.push(champs.volume);
-  if (!dit.region && champs.region) resume.push(champs.region);
-  if (!dit.cepage && champs.cepage) resume.push(champs.cepage);
+  // Ce qui a été dit et ce qui a été lu restent distincts : l'un est sûr,
+  // l'autre est à vérifier.
+  const dicte = resumerDictee(dit);
+  const lu = [];
+  if (!dit.millesime && champs.millesime) lu.push(`millésime ${champs.millesime}`);
+  if (!dit.degre && champs.degre) lu.push(`${String(champs.degre).replace('.', ',')} %`);
+  if (!dit.volume && champs.volume) lu.push(champs.volume);
+  if (!dit.region && champs.region) lu.push(champs.region);
+  if (!dit.cepage && champs.cepage) lu.push(champs.cepage);
+  const resume = [
+    dicte.length ? `Dicté : ${dicte.join(', ')}` : '',
+    lu.length ? `Lu sur l'étiquette : ${lu.join(', ')}` : '',
+  ].filter(Boolean);
 
   return el('section', { class: 'bloc' }, [
     el('div', { class: 'bloc-entete' }, [el('h2', { text: 'Nouvelle fiche' })]),
     resume.length
-      ? el('p', { class: 'discret', text: `Lu sur l'étiquette : ${resume.join(', ')}` })
+      ? el('p', { class: 'discret', text: `${resume.join('. ')}.` })
       : el('p', {
         class: 'discret',
         text: etat.lecture

@@ -22,7 +22,17 @@ const CLE_CODE = 'cave-a-vin.code.v1';
 // change, ce qui laisse le trafic à quelques centaines d'octets entre deux
 // modifications réelles.
 const TEMOIN = 'etat';
+// Une remise à zéro (cave vidée, sauvegarde restaurée) se signale à part : le
+// témoin, réécrit en entier à chaque modification, ne saurait la retenir.
+const REMISE = 'remise';
 const PERIODE = 8000;
+
+// Ce qui doit survivre à la fermeture de l'application, qu'iOS décide seul :
+// les modifications pas encore parties, une remise à zéro pas encore publiée,
+// et les fiches déjà vues dans la cave partagée.
+const CLE_ATTENTE = 'cave-a-vin.attente.v1';
+const CLE_REMPLACEMENT = 'cave-a-vin.remplacement.v1';
+const CLE_CONNUS = 'cave-a-vin.connus.v1';
 
 let code = null;
 let rappels = {};
@@ -30,6 +40,7 @@ let etatCourant = 'recherche';
 let minuteur = null;
 let dernierTemoin = null;
 const enAttente = [];
+const enVol = new Set();
 
 export const etat = () => etatCourant;
 export const synchroActive = () => Boolean(code);
@@ -51,6 +62,63 @@ function lireCode() {
     return '';
   }
 }
+
+function lireJson(cle) {
+  try {
+    return JSON.parse(localStorage.getItem(cle) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function ecrireJson(cle, valeur) {
+  try {
+    if (valeur === null) localStorage.removeItem(cle);
+    else localStorage.setItem(cle, JSON.stringify(valeur));
+  } catch { /* la session tiendra quand même */ }
+}
+
+/**
+ * Ce que cet appareil sait de la cave partagée : les fiches qu'il y a déjà
+ * vues, et la dernière remise à zéro dont il a pris acte.
+ *
+ * Sans cette mémoire, une fiche absente du partage ne se distingue pas d'une
+ * fiche effacée ailleurs. Un téléphone resté fermé pendant qu'on supprimait un
+ * vin, ou qu'on vidait la cave, renvoyait tout à sa réouverture, et ce qui
+ * avait été effacé revenait sur tous les appareils.
+ */
+function lireConnus() {
+  const lu = lireJson(CLE_CONNUS);
+  if (lu && lu.code === code) return lu;
+  return { code, vins: [], degustations: [], synchronise: false, remiseVue: '' };
+}
+
+function noterConnus(modifications) {
+  ecrireJson(CLE_CONNUS, { ...lireConnus(), ...modifications, code });
+}
+
+function connaitre(collection, id, present) {
+  if (collection !== COLLECTIONS.vins && collection !== COLLECTIONS.degustations) return;
+  const connus = lireConnus();
+  const ids = new Set(connus[collection]);
+  if (present) ids.add(id);
+  else ids.delete(id);
+  noterConnus({ [collection]: [...ids] });
+}
+
+/** La file des modifications pas encore parties, gardée dans le téléphone. */
+function sauverAttente() {
+  ecrireJson(CLE_ATTENTE, enAttente.length
+    ? { code, operations: enAttente.map(({ collection, fiche, suppression }) => ({ collection, fiche, suppression })) }
+    : null);
+}
+
+function chargerAttente() {
+  const lu = lireJson(CLE_ATTENTE);
+  enAttente.splice(0, enAttente.length, ...(lu && lu.code === code ? lu.operations || [] : []));
+}
+
+const remplacementEnAttente = () => lireJson(CLE_REMPLACEMENT)?.code === code;
 
 /** Le code vit dans le navigateur : on le saisit une fois par appareil. */
 export function enregistrerCode(valeur) {
@@ -169,6 +237,41 @@ async function lireTemoin() {
   }
 }
 
+async function lireRemise() {
+  try {
+    const paquet = await appeler(chemin('meta', REMISE));
+    return paquet?.fields?.le?.stringValue || '';
+  } catch (erreur) {
+    if (String(erreur.message).startsWith('404')) return '';
+    throw erreur;
+  }
+}
+
+async function marquerRemise() {
+  const le = new Date().toISOString();
+  await appeler(chemin('meta', REMISE), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { le: { stringValue: le } } }),
+  });
+  return le;
+}
+
+/**
+ * Une remise à zéro faite ailleurs rend caduques les modifications que cet
+ * appareil n'avait pas encore pu envoyer : elles portaient sur la cave d'avant,
+ * et les rejouer remettrait dans la cave vidée ce qu'on venait d'en ôter.
+ */
+async function abandonnerSiRemiseAilleurs() {
+  if (!enAttente.length || remplacementEnAttente()) return;
+  const connus = lireConnus();
+  if (!connus.synchronise) return;
+  const remise = await lireRemise();
+  if (remise === connus.remiseVue) return;
+  enAttente.splice(0);
+  sauverAttente();
+}
+
 // --- mise en route ----------------------------------------------------------
 
 /**
@@ -192,10 +295,16 @@ export async function initialiser({ donneesLocales, onDonnees, onEtat }) {
     return false;
   }
 
+  rappels.donneesLocales = donneesLocales;
+  chargerAttente();
   try {
+    // Ce qui n'était pas parti avant la fermeture part d'abord, sans quoi la
+    // relecture de la cave partagée l'effacerait d'ici.
+    await abandonnerSiRemiseAilleurs();
+    await rejouer();
     await fusionner(donneesLocales());
     await rapatrier();
-    changerEtat('connecte');
+    changerEtat(enAttente.length || remplacementEnAttente() ? 'attente' : 'connecte');
   } catch (erreur) {
     console.info('Cave partagée injoignable', erreur);
     changerEtat('attente');
@@ -207,16 +316,23 @@ export async function initialiser({ donneesLocales, onDonnees, onEtat }) {
 }
 
 async function fusionner(locales) {
-  const [distantsVins, distantesDegustations] = await Promise.all([
+  if (remplacementEnAttente()) return;
+  const [distantsVins, distantesDegustations, remise] = await Promise.all([
     lireCollection(COLLECTIONS.vins),
     lireCollection(COLLECTIONS.degustations),
+    lireRemise(),
   ]);
   const vide = !distantsVins.length && !distantesDegustations.length;
+  const connus = lireConnus();
+
+  // La cave a été vidée ou restaurée ailleurs depuis notre dernier passage :
+  // elle fait foi, et ce que cet appareil en gardait ne doit pas y revenir.
+  if (connus.synchronise && remise !== connus.remiseVue) return;
 
   const envois = [
-    ...aEnvoyer(locales.vins, distantsVins, vide)
+    ...aEnvoyer(locales.vins, distantsVins, new Set(connus.vins))
       .map((vin) => ecrireFiche(COLLECTIONS.vins, vin)),
-    ...aEnvoyer(locales.degustations, distantesDegustations, vide)
+    ...aEnvoyer(locales.degustations, distantesDegustations, new Set(connus.degustations))
       .map((d) => ecrireFiche(COLLECTIONS.degustations, d)),
   ];
   // Une cave qui vient de naître n'a pas de témoin, et chaque sondage le
@@ -229,24 +345,37 @@ async function fusionner(locales) {
   await marquerTemoin();
 }
 
-/** Fiches que le partage ignore, ou qu'il connaît moins à jour. */
-function aEnvoyer(locales, distantes, vide) {
-  if (vide) return locales;
-  const connues = new Map(distantes.map((f) => [f.id, f.modifieLe || '']));
-  return locales.filter((fiche) => (
-    !connues.has(fiche.id) || (fiche.modifieLe || '') > connues.get(fiche.id)
-  ));
+/**
+ * Fiches à publier : celles que le partage connaît moins à jour, et celles
+ * qu'il n'a jamais eues. Une fiche que cet appareil y avait déjà vue et qui
+ * n'y est plus a été effacée ailleurs : elle ne repart pas.
+ */
+function aEnvoyer(locales, distantes, dejaVues) {
+  const distantesParId = new Map(distantes.map((f) => [f.id, f.modifieLe || '']));
+  return locales.filter((fiche) => (distantesParId.has(fiche.id)
+    ? (fiche.modifieLe || '') > distantesParId.get(fiche.id)
+    : !dejaVues.has(fiche.id)));
 }
 
 /** Relit la cave entière et la donne à l'application. */
 async function rapatrier() {
-  const [vins, degustations] = await Promise.all([
+  // Le témoin est lu avant la cave : une écriture faite pendant la relecture
+  // sera vue au sondage suivant, au lieu d'être tenue pour déjà lue.
+  const temoin = await lireTemoin();
+  const [vins, degustations, remise] = await Promise.all([
     lireCollection(COLLECTIONS.vins),
     lireCollection(COLLECTIONS.degustations),
+    lireRemise(),
   ]);
   rappels.onDonnees?.('vins', vins);
   rappels.onDonnees?.('degustations', degustations);
-  dernierTemoin = await lireTemoin();
+  dernierTemoin = temoin;
+  noterConnus({
+    vins: vins.map((f) => f.id),
+    degustations: degustations.map((f) => f.id),
+    synchronise: true,
+    remiseVue: remise,
+  });
 }
 
 /**
@@ -267,8 +396,9 @@ function surveiller() {
     occupe = true;
     try {
       const temoin = await lireTemoin();
-      changerEtat('connecte');
-      rejouer();
+      if (temoin !== dernierTemoin) await abandonnerSiRemiseAilleurs();
+      await rejouer();
+      changerEtat(enAttente.length || remplacementEnAttente() ? 'attente' : 'connecte');
       if (temoin === dernierTemoin) return;
       dernierTemoin = temoin;
       await rapatrier();
@@ -302,34 +432,65 @@ export function arreter() {
 
 // --- écritures --------------------------------------------------------------
 
-/** Pousse une modification, ou la met de côté si la cave ne répond pas. */
+/**
+ * Pousse une modification.
+ *
+ * Elle est d'abord inscrite dans la file gardée par le téléphone, et n'en sort
+ * qu'une fois arrivée : une suppression faite au sous-sol, puis l'application
+ * fermée, partait autrefois avec la mémoire, et la fiche revenait.
+ */
 function pousser(collection, fiche, suppression = false) {
   if (!code) return;
   const operation = { collection, fiche, suppression };
-  const promesse = suppression
-    ? effacerFiche(collection, fiche.id)
-    : ecrireFiche(collection, fiche);
-
-  promesse
-    .then(() => marquerTemoin())
-    .then((pose) => { if (pose) dernierTemoin = pose; changerEtat('connecte'); })
-    .catch((erreur) => {
-      console.info('Modification mise de côté', erreur);
-      const index = enAttente.findIndex(
-        (o) => o.collection === collection && o.fiche.id === fiche.id,
-      );
-      if (index === -1) enAttente.push(operation);
-      else enAttente[index] = operation;
-      changerEtat('attente');
-    });
+  const index = enAttente.findIndex((o) => o.collection === collection && o.fiche.id === fiche.id);
+  if (index === -1) enAttente.push(operation);
+  else enAttente[index] = operation;
+  sauverAttente();
+  if (!remplacementEnAttente()) envoyer(operation);
 }
 
-/** Rejoue ce qui attend. Ce qui échoue encore retourne dans la file. */
-function rejouer() {
-  if (!code || !enAttente.length) return;
-  for (const { collection, fiche, suppression } of enAttente.splice(0)) {
-    pousser(collection, fiche, suppression);
+async function envoyer(operation) {
+  if (enVol.has(operation)) return;
+  enVol.add(operation);
+  const { collection, fiche, suppression } = operation;
+  try {
+    if (suppression) await effacerFiche(collection, fiche.id);
+    else await ecrireFiche(collection, fiche);
+    // Une modification plus récente de la même fiche a pu prendre sa place
+    // dans la file entre-temps : celle-là reste à faire.
+    const index = enAttente.indexOf(operation);
+    if (index !== -1) { enAttente.splice(index, 1); sauverAttente(); }
+    connaitre(collection, fiche.id, !suppression);
+    // Le témoin n'est tenu pour lu que s'il n'avait pas bougé depuis le
+    // dernier sondage. Sinon un autre appareil a écrit entre-temps, et ce
+    // qu'il a fait doit être relu, pas recouvert.
+    const avant = await lireTemoin().catch(() => null);
+    const pose = await marquerTemoin();
+    if (pose && avant === dernierTemoin) dernierTemoin = pose;
+    if (!enAttente.length) changerEtat('connecte');
+  } catch (erreur) {
+    console.info('Modification mise de côté', erreur);
+    changerEtat('attente');
+  } finally {
+    enVol.delete(operation);
   }
+}
+
+/**
+ * Rejoue ce qui attend : une remise à zéro d'abord, qui rend caduc tout le
+ * reste, puis les modifications une à une. Ce qui échoue reste dans la file.
+ */
+async function rejouer() {
+  if (!code) return;
+  if (remplacementEnAttente()) {
+    try {
+      await remplacerMaintenant(rappels.donneesLocales?.() || { vins: [], degustations: [] });
+    } catch (erreur) {
+      console.info('Remise à zéro toujours en attente', erreur);
+      return;
+    }
+  }
+  await Promise.all([...enAttente].map(envoyer));
 }
 
 export const ecrireVin = (vin) => pousser(COLLECTIONS.vins, vin);
@@ -373,14 +534,36 @@ async function lireApercus() {
   return cles;
 }
 
+/** Les clés des aperçus déjà déposés dans la cave partagée. */
+export const clesApercus = () => (code ? lireApercus() : Promise.resolve([]));
+
 export function effacerApercu(cle) {
   if (!code) return Promise.resolve();
   return appeler(chemin(COLLECTIONS.apercus, cle), { method: 'DELETE' }).catch(() => {});
 }
 
-/** Remplace tout le contenu partagé, après une restauration ou une remise à zéro. */
-export async function remplacerTout({ vins, degustations }) {
-  if (!code) return;
+/**
+ * Remplace tout le contenu partagé, après une restauration ou une remise à zéro.
+ *
+ * Rend `{ publie }` : faux quand la cave partagée n'a pas pu être atteinte. La
+ * remise reste alors inscrite dans le téléphone et sera rejouée au retour du
+ * réseau, ou à la prochaine ouverture. Avant, l'échec était tu : l'écran disait
+ * la cave vidée, et la relecture suivante la remplissait de nouveau.
+ */
+export async function remplacerTout(donnees) {
+  if (!code) return { publie: true };
+  ecrireJson(CLE_REMPLACEMENT, { code });
+  try {
+    await remplacerMaintenant(donnees);
+    return { publie: true };
+  } catch (erreur) {
+    console.info('Remise à zéro mise de côté', erreur);
+    changerEtat('attente');
+    return { publie: false };
+  }
+}
+
+async function remplacerMaintenant({ vins, degustations }) {
   const [ancienVins, ancienDegustations, anciensApercus] = await Promise.all([
     lireCollection(COLLECTIONS.vins),
     lireCollection(COLLECTIONS.degustations),
@@ -393,15 +576,31 @@ export async function remplacerTout({ vins, degustations }) {
   // partagé à chaque restauration.
   const photosGardees = new Set([...vins, ...degustations].flatMap(clesPhotos));
 
+  // Une fiche qui n'a pas pu être écrite ou effacée fait échouer le tout,
+  // qui sera rejoué : chaque opération peut l'être sans dommage.
   await Promise.all([
     ...ancienVins.filter((f) => !gardes.has(f.id))
-      .map((f) => effacerFiche(COLLECTIONS.vins, f.id).catch(() => {})),
+      .map((f) => effacerFiche(COLLECTIONS.vins, f.id)),
     ...ancienDegustations.filter((f) => !gardes.has(f.id))
-      .map((f) => effacerFiche(COLLECTIONS.degustations, f.id).catch(() => {})),
+      .map((f) => effacerFiche(COLLECTIONS.degustations, f.id)),
     ...anciensApercus.filter((cle) => !photosGardees.has(cle))
       .map((cle) => effacerApercu(cle)),
-    ...vins.map((v) => ecrireFiche(COLLECTIONS.vins, v).catch(() => {})),
-    ...degustations.map((d) => ecrireFiche(COLLECTIONS.degustations, d).catch(() => {})),
+    ...vins.map((v) => ecrireFiche(COLLECTIONS.vins, v)),
+    ...degustations.map((d) => ecrireFiche(COLLECTIONS.degustations, d)),
   ]);
-  await marquerTemoin();
+  const remise = await marquerRemise();
+  // Les modifications qui attendaient portaient sur l'état d'avant : la cave
+  // qu'on vient de publier les contient déjà, ou les a écartées exprès.
+  enAttente.splice(0);
+  sauverAttente();
+  ecrireJson(CLE_REMPLACEMENT, null);
+  noterConnus({
+    vins: vins.map((f) => f.id),
+    degustations: degustations.map((f) => f.id),
+    synchronise: true,
+    remiseVue: remise,
+  });
+  const avant = await lireTemoin().catch(() => null);
+  const pose = await marquerTemoin();
+  if (pose && avant === dernierTemoin) dernierTemoin = pose;
 }

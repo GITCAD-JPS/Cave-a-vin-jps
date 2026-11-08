@@ -1,7 +1,7 @@
 // Sauvegarde et export. Le CSV utilise le point-virgule et un BOM UTF-8 :
 // c'est ce qu'attend Excel en configuration francophone.
 
-import { EMPLACEMENTS, libelleCouleur } from './model.js';
+import { EMPLACEMENTS, jourIso, libelleCouleur } from './model.js';
 import * as store from './store.js';
 
 const SEPARATEUR = ';';
@@ -99,7 +99,7 @@ export async function telecharger(nomFichier, contenu, type) {
   return 'enregistre';
 }
 
-const horodatage = () => new Date().toISOString().slice(0, 10);
+const horodatage = () => jourIso();
 
 export async function sauvegardeComplete() {
   const paquet = await store.exporterJson({ avecPhotos: true });

@@ -6,6 +6,7 @@ import {
 } from '../composants.js';
 import { EMPLACEMENTS, libelleCouleur, trierDegustations } from '../model.js';
 import { platsPourVin, profilDuVin } from '../accords.js';
+import { choisirPlat } from './accords.js';
 import {
   dialogueAjouterBouteilles, dialogueBoire, dialogueDeplacer, formulaireVin,
 } from '../formulaires.js';
@@ -202,7 +203,8 @@ function accords(vin, naviguer) {
         class: `etiquette etiquette-cliquable${p.extrait ? ' etiquette-perso' : ''}`,
         title: p.extrait || `Accord suggéré : ${p.libelle.toLowerCase()}`,
         text: p.libelle,
-        onclick: () => naviguer('/accords'),
+        // Sur le plat touché, et non sur le dernier plat consulté.
+        onclick: () => { choisirPlat(p.plat); naviguer('/accords'); },
       })))
       : null,
     personnels.length

@@ -86,15 +86,20 @@ function ouvrir() {
 function transaction(mode, action) {
   return ouvrir().then((base) => new Promise((resoudre, rejeter) => {
     let requete;
+    let tx;
     try {
-      const tx = base.transaction(MAGASIN, mode);
+      tx = base.transaction(MAGASIN, mode);
       requete = action(tx.objectStore(MAGASIN));
     } catch (erreur) {
       rejeter(erreur);
       return;
     }
-    requete.onsuccess = () => resoudre(requete.result);
-    requete.onerror = () => rejeter(erreurDe(requete, 'écriture refusée'));
+    // Une écriture n'est acquise qu'une fois la transaction close : la
+    // requête peut réussir puis être annulée faute de place. Répondre à la
+    // requête annonçait gardée une photo que le téléphone venait de refuser.
+    tx.oncomplete = () => resoudre(requete.result);
+    tx.onabort = () => rejeter(tx.error || erreurDe(requete, 'écriture refusée'));
+    tx.onerror = () => rejeter(tx.error || erreurDe(requete, 'écriture refusée'));
   }));
 }
 
@@ -281,9 +286,10 @@ async function partagerApercu(cle, blob) {
  * vaut mieux qu'un vin sans image.
  */
 export async function exporter(clesUtilisees = []) {
-  const locales = await clefs().catch(() => []);
   const paquet = {};
-  for (const cle of new Set([...locales, ...clesUtilisees])) {
+  // Les seules photos qu'une fiche réclame : les autres, restes de prises
+  // abandonnées, gonflaient chaque sauvegarde sans servir à rien.
+  for (const cle of new Set(clesUtilisees)) {
     if (!cle) continue;
     const blob = await lire(cle).catch(() => null);
     if (blob) paquet[cle] = await versDataUrl(blob);
@@ -300,6 +306,46 @@ export async function importer(paquet = {}) {
   for (const [cle, dataUrl] of Object.entries(paquet)) {
     const blob = await depuisDataUrl(dataUrl);
     if (blob) await ecrire(cle, blob);
+  }
+}
+
+/**
+ * Efface de ce téléphone les photos que plus aucune fiche ne réclame.
+ *
+ * Reprendre une photo, la retirer, remettre une étiquette à plat ou quitter
+ * un ajout en cours laisse l'ancienne image derrière soi, et elle partait
+ * ensuite dans chaque sauvegarde. Seules les photos présentes à l'appel sont
+ * examinées : celle qu'on serait en train de prendre n'en fait pas partie.
+ * Les copies partagées ne sont pas touchées, une autre cave pouvant les
+ * réclamer encore.
+ */
+export async function faireLeMenage(clesUtilisees) {
+  const gardees = new Set(clesUtilisees);
+  const presentes = await clefs().catch(() => []);
+  for (const cle of presentes) {
+    if (gardees.has(cle) || estPartagee(cle)) continue;
+    oublier(cle);
+    await avecRepli(
+      () => transaction('readwrite', (m) => m.delete(cle)),
+      () => { memoire.delete(cle); },
+    ).catch(() => {});
+  }
+}
+
+/**
+ * Dépose dans la cave partagée les copies réduites qui y manquent.
+ *
+ * Elles n'étaient déposées qu'à la prise de vue, une seule fois : une photo
+ * prise avant d'activer le partage, prise sans réseau ou restaurée d'une
+ * sauvegarde ne s'affichait jamais sur les autres appareils.
+ */
+export async function deposerApercusManquants(clesUtilisees) {
+  if (!synchro.synchroActive()) return;
+  const deposes = new Set(await synchro.clesApercus());
+  for (const cle of new Set(clesUtilisees)) {
+    if (!cle || estPartagee(cle) || deposes.has(cle)) continue;
+    const blob = await lire(cle).catch(() => null);
+    if (blob) await partagerApercu(cle, blob);
   }
 }
 

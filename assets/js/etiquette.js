@@ -163,6 +163,10 @@ export async function lireEtiquette(images, { onProgres, cleVision = '' } = {}) 
 
   let ouvrier = null;
   let minuteur = null;
+  // Le délai peut tomber pendant que le moteur se charge encore : l'ouvrier
+  // naît alors après l'abandon, et personne ne l'aurait plus arrêté. Il doit
+  // savoir qu'on ne l'attend plus.
+  let abandonne = false;
 
   let lues = 0;
   const reconnaitre = async () => {
@@ -183,6 +187,7 @@ export async function lireEtiquette(images, { onProgres, cleVision = '' } = {}) 
         onProgres((lues + etat.progress) / photos.length);
       },
     });
+    if (abandonne) { ouvrier.terminate().catch(() => {}); return null; }
     await ouvrier.setParameters({ tessedit_pageseg_mode: DECOUPAGE_BLOC });
 
     // Plusieurs photos passent par le même ouvrier : le charger coûte bien
@@ -190,6 +195,7 @@ export async function lireEtiquette(images, { onProgres, cleVision = '' } = {}) 
     const morceaux = [];
     let confiance = 0;
     for (const photo of photos) {
+      if (abandonne) { ouvrier.terminate().catch(() => {}); return null; }
       const { data } = await ouvrier.recognize(await normaliser(photo));
       if (data.text) morceaux.push(data.text);
       confiance = Math.max(confiance, data.confidence ?? 0);
@@ -207,6 +213,7 @@ export async function lireEtiquette(images, { onProgres, cleVision = '' } = {}) 
     return await Promise.race([reconnaitre(), delai]);
   } catch (erreur) {
     console.info("Lecture de l'étiquette impossible", erreur);
+    abandonne = true;
     indisponible = true;
     return null;
   } finally {
@@ -259,6 +266,9 @@ function appellationProbable(lignes) {
   if (dedans) return dedans;
   if (rang < 1) return '';
   for (let i = rang - 1; i >= 0 && i >= rang - 2; i -= 1) {
+    // Une part d'assemblage (« 100 % Sangiovese ») n'est pas une appellation.
+    // Le test se fait avant le nettoyage, qui emporterait le signe pour cent.
+    if (/^\s*\d+\s*%/.test(lignes[i])) continue;
     const avant = lignes[i].replace(/[^\p{L}\p{N}'’\- ]/gu, ' ').replace(/\s+/g, ' ').trim();
     if (avant.length < 4 || avant.length > 45) continue;
     if (SUIT_APPELLATION.test(avant) || MENTIONS.some((m) => m.test(avant))) continue;
@@ -303,11 +313,15 @@ const CEPAGES = [
 
 /** Les cépages nommés sur l'étiquette, au plus trois. */
 function cepagesProbables(texte) {
-  const plat = ` ${sansAccent(texte).toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
+  let plat = ` ${sansAccent(texte).toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
   const trouves = [];
   for (const [cle, affiche] of CEPAGES) {
     if (trouves.includes(affiche)) continue;
-    if (plat.includes(` ${cle} `)) trouves.push(affiche);
+    if (!plat.includes(` ${cle} `)) continue;
+    trouves.push(affiche);
+    // Retiré une fois reconnu, sinon « cabernet sauvignon » rendait aussi
+    // « sauvignon », et l'assemblage s'inventait un second cépage.
+    plat = plat.split(` ${cle} `).join('  ');
     if (trouves.length === 3) break;
   }
   return trouves;
@@ -333,7 +347,9 @@ export function extraireChamps(texte) {
   const colle = brut.match(/\b(\d{3})\s*%/);
   if (decimal) champs.degre = Number(`${decimal[1]}.${decimal[2]}`);
   else if (entier) champs.degre = Number(entier[1]);
-  else if (colle && Number(colle[1]) / 10 >= 10 && Number(colle[1]) / 10 <= 18) {
+  // « 100 % Sangiovese » tombe pile dans la fourchette, mais c'est un
+  // assemblage, pas un degré : cent pour cent ne s'écrit jamais pour l'alcool.
+  else if (colle && colle[1] !== '100' && Number(colle[1]) / 10 >= 10 && Number(colle[1]) / 10 <= 18) {
     champs.degre = Number(colle[1]) / 10;
   }
   if (champs.degre !== undefined && (champs.degre < 4 || champs.degre > 22)) delete champs.degre;
@@ -343,7 +359,15 @@ export function extraireChamps(texte) {
   // bonne si la table nutritionnelle (« 100 ml : E = 342 Kj ») passe avant,
   // d'où la recherche de la première valeur qui tienne dans des bornes de
   // bouteille.
-  for (const trouve of brut.matchAll(/\b(\d{2,4})\s*(cl|ml|l)e?\b/gi)) {
+  // En litres décimaux d'abord, notation usuelle des magnums et des
+  // demi-bouteilles : « 1,5 L », « 0,375 l ». Le motif suivant, qui veut deux
+  // chiffres entiers au moins, les manquait, et la fiche gardait 75 cl.
+  const litres = brut.match(/\b(\d)[.,](\d{1,3})\s*l\b/i);
+  const enLitres = litres ? Math.round(Number(`${litres[1]}.${litres[2]}`) * 1000) / 10 : 0;
+  if (enLitres >= 18 && enLitres <= 600) {
+    champs.volume = enLitres === 150 ? '150 cl (Magnum)' : `${enLitres} cl`;
+  }
+  for (const trouve of (champs.volume ? [] : brut.matchAll(/\b(\d{2,4})\s*(cl|ml|l)e?\b/gi))) {
     const nombre = Number(trouve[1]);
     const unite = trouve[2].toLowerCase();
     const centilitres = unite === 'ml' ? nombre / 10 : unite === 'l' ? nombre * 100 : nombre;

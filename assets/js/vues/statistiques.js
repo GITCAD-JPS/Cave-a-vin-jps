@@ -4,7 +4,7 @@ import { bouton, el, formaterNote, vider } from '../dom.js';
 import { barres, section, tuile } from '../composants.js';
 import { statistiques } from '../model.js';
 import * as store from '../store.js';
-import { appliquerFiltres } from './cave.js';
+import { appliquerFiltres, reinitialiserFiltres } from './cave.js';
 
 const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
@@ -40,6 +40,9 @@ export function rendre(conteneur, { naviguer }) {
         bouton('Les passer en revue', {
           classe: 'bouton bouton-primaire',
           onclick: () => {
+            // Partir d'une cave sans filtre : une puce « Rouge » restée posée
+            // cachait les fiches à couleur inconnue, justement à vérifier.
+            reinitialiserFiltres();
             appliquerFiltres({ anomalies: true, statut: 'en-cave', recherche: '' });
             naviguer('/cave');
           },

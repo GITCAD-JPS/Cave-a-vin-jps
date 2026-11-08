@@ -17,7 +17,7 @@ const CLE_PREFERENCES = 'cave-a-vin.preferences.v1';
 export const VERSION_DONNEES = 1;
 // Affichée dans les réglages : sans elle, impossible de savoir à distance si
 // un appareil tourne encore sur une version en cache. À faire suivre sw.js.
-export const VERSION_APP = '55';
+export const VERSION_APP = '56';
 
 const etat = {
   vins: [],
@@ -147,6 +147,9 @@ export async function charger() {
   if (local && Array.isArray(local.vins)) adopter(local);
   etat.charge = true;
   notifier();
+  // À l'ouverture, aucune photo n'est en cours de prise : ce que nulle fiche
+  // ne réclame peut partir.
+  photos.faireLeMenage(toutesLesPhotos()).catch(() => {});
 
   // La cave s'affiche d'abord depuis le navigateur. Le stockage partagé, s'il
   // existe, se branche ensuite et met les appareils d'accord.
@@ -154,7 +157,10 @@ export async function charger() {
     donneesLocales: () => ({ vins: etat.vins, degustations: etat.degustations }),
     onDonnees: appliquerDistant,
     onEtat: notifier,
-  }).catch((erreur) => console.info('Synchronisation indisponible', erreur));
+  })
+    .then(() => deposerLesApercus())
+    .catch((erreur) => console.info('Synchronisation indisponible', erreur));
+  addEventListener('online', () => deposerLesApercus());
 
   return etat;
 }
@@ -173,6 +179,13 @@ export async function charger() {
  * le nombre de fiches reste le même : une quantité corrigée sur l'autre
  * appareil n'aurait pas redessiné l'écran.
  */
+const toutesLesPhotos = () => [...etat.vins, ...etat.degustations].flatMap(clesPhotos);
+
+function deposerLesApercus() {
+  return photos.deposerApercusManquants(toutesLesPhotos())
+    .catch((erreur) => console.info('Aperçus non déposés', erreur));
+}
+
 function appliquerDistant(cle, fiches) {
   if (cle === 'vins') etat.vins = fiches.map(normaliserVin);
   else etat.degustations = fiches.map(normaliserDegustation);
@@ -192,7 +205,9 @@ export async function vider() {
   adopter({ vins: [], degustations: [] });
   await photos.vider().catch(() => {});
   enregistrer();
-  await synchro.remplacerTout(etat).catch(() => {});
+  // Rend `{ publie }` : faux si la cave partagée sera vidée plus tard, au
+  // retour du réseau, ce que l'écran doit dire plutôt que d'annoncer fait.
+  return synchro.remplacerTout(etat);
 }
 
 // --- actions sur les vins ---------------------------------------------------
@@ -403,6 +418,8 @@ export async function importerJson(paquet) {
   if (paquet.photos) await photos.importer(paquet.photos).catch(() => {});
   adopter(paquet);
   enregistrer();
-  await synchro.remplacerTout(etat).catch(() => {});
-  return { vins: etat.vins.length, degustations: etat.degustations.length };
+  const { publie } = await synchro.remplacerTout(etat);
+  // Les photos restaurées doivent aussi se voir sur les autres appareils.
+  if (publie) deposerLesApercus();
+  return { vins: etat.vins.length, degustations: etat.degustations.length, publie };
 }

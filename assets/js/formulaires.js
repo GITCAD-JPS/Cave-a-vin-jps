@@ -1,9 +1,11 @@
 // Formulaires et boîtes de dialogue de saisie.
 
-import { bouton, champ, dialogue, el, icone, message, selection, vider } from './dom.js';
+import {
+  bouton, champ, champGroupe, dialogue, el, icone, message, selection, vider,
+} from './dom.js';
 import { pastillesLignes, pastillesValeurs } from './composants.js';
 import {
-  COULEURS, EMPLACEMENTS, VOLUMES, aujourdhui, dateTriable, entier, nombreOuNull,
+  COULEURS, EMPLACEMENTS, VOLUMES, aujourdhui, dateTriable, entier, jourIso, nombreOuNull,
 } from './model.js';
 import { extraireChamps, lireEtiquette } from './etiquette.js';
 import { dialogueMiseAPlat } from './mise-a-plat.js';
@@ -443,9 +445,9 @@ export function formulaireVin(vinExistant, { onEnregistre, brouillon } = {}) {
       })),
     ]),
     champ('Note personnelle', el('textarea', { name: 'note', rows: '3' }, vin.note)),
-    champ('Note sur 5', selecteurNote(vin.notation)),
-    champ("Photo de l'étiquette", photo.noeud),
-    champ("Photo de l'étiquette arrière", arriere.noeud),
+    champGroupe('Note sur 5', selecteurNote(vin.notation)),
+    champGroupe("Photo de l'étiquette", photo.noeud),
+    champGroupe("Photo de l'étiquette arrière", arriere.noeud),
     el('div', { class: 'rangee-boutons' }, [
       bouton('Scanner le texte avec l’iPhone', {
         classe: 'bouton bouton-discret',
@@ -520,7 +522,7 @@ export function dialogueBoire(vin, { onFait, photoLocale = '' } = {}) {
       el('div', { class: 'grille-deux' }, [
         champ('Prise dans', selection(options, options[0].valeur, { name: 'emplacement' })),
         champ('Date', el('input', {
-          type: 'date', name: 'date', value: new Date().toISOString().slice(0, 10),
+          type: 'date', name: 'date', value: jourIso(),
         })),
       ]),
       el('div', { class: 'grille-deux' }, [
@@ -529,7 +531,7 @@ export function dialogueBoire(vin, { onFait, photoLocale = '' } = {}) {
         })),
         champ('Lieu', el('input', { type: 'text', name: 'lieu', placeholder: 'Facultatif' })),
       ]),
-      champ('Note sur 5', selecteurNote(vin.notation)),
+      champGroupe('Note sur 5', selecteurNote(vin.notation)),
       champ('Commentaire de dégustation', el('textarea', {
         name: 'commentaire', rows: '3', placeholder: 'Accords, impressions, personnes présentes…',
       })),
@@ -627,8 +629,16 @@ export function dialogueDeplacer(vin, { onFait } = {}) {
         message('Choisissez deux emplacements différents', 'erreur');
         return;
       }
-      store.deplacerBouteilles(vin.id, depuis, vers, entier(texteSaisi(formulaire, 'nombre'), 1));
-      message('Bouteilles déplacées');
+      // Seul ce qui est rangé à l'emplacement de départ peut en partir : le
+      // message disait « déplacées » même quand rien n'avait bougé.
+      const disponible = vin.emplacements[depuis] || 0;
+      if (!disponible) {
+        message('Aucune bouteille rangée à cet emplacement', 'erreur');
+        return;
+      }
+      const nombre = Math.min(entier(texteSaisi(formulaire, 'nombre'), 1), disponible);
+      store.deplacerBouteilles(vin.id, depuis, vers, nombre);
+      message(nombre > 1 ? `${nombre} bouteilles déplacées` : '1 bouteille déplacée');
       fermer();
       onFait?.();
     });
@@ -678,9 +688,9 @@ export function formulaireDegustation(existante, { onEnregistre } = {}) {
       })),
       champ('Lieu', el('input', { type: 'text', name: 'lieu', value: degustation.lieu })),
     ]),
-    champ('Note sur 5', selecteurNote(degustation.notation)),
+    champGroupe('Note sur 5', selecteurNote(degustation.notation)),
     champ('Commentaire', el('textarea', { name: 'commentaire', rows: '3' }, degustation.commentaire)),
-    champ("Photo de l'étiquette", photo.noeud),
+    champGroupe("Photo de l'étiquette", photo.noeud),
     el('div', { class: 'formulaire-actions' }, [
       bouton('Annuler', { classe: 'bouton', onclick: () => onEnregistre(null) }),
       el('button', {

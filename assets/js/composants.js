@@ -102,7 +102,8 @@ export function pastillesValeurs(champs, formulaire) {
       champ.value = aEcrire(champ, nom, texte);
       continue;
     }
-    if (String(champ.value).trim() === texte.trim()) continue;
+    // Comparé à ce qui serait écrit : « 12,5 % » et « 12.5 » sont le même degré.
+    if (String(champ.value).trim() === aEcrire(champ, nom, texte).trim()) continue;
     pastilles.push(el('button', {
       type: 'button',
       class: 'etiquette etiquette-cliquable',

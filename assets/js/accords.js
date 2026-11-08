@@ -222,9 +222,11 @@ const INDICES_NOTE = {
   // « notes épicées » décrit le vin, pas le plat : seules les tournures qui
   // désignent un mets comptent.
   epice: ['plats épicés', 'plats epices', 'cuisine épicée', 'cuisine epicee',
-    'asiatique', 'curry', 'exotique', 'exotiques', 'sucré-salé', 'sucre-sale'],
+    // Pas « exotique » : « fruits exotiques » décrit le vin, pas le plat.
+    'asiatique', 'curry', 'sucré-salé', 'sucre-sale'],
   vegetarien: ['végétarien', 'vegetarien', 'légume', 'legume', 'asperge'],
-  dessert: ['dessert', 'tarte', 'chocolat', 'foie gras'],
+  // « chocolat » seul est un arôme de vin rouge, pas une invitation au dessert.
+  dessert: ['dessert', 'tarte', 'au chocolat', 'gâteau', 'gateau', 'foie gras'],
   aperitif: ['apéritif', 'aperitif', 'apéro'],
 };
 

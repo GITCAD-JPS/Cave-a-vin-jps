@@ -66,6 +66,36 @@ function naviguer(chemin) {
   location.hash = chemin;
 }
 
+// Ce qui identifie un champ d'un dessin à l'autre.
+const cleDuChamp = (e) => e.id || e.name || e.getAttribute('aria-label') || '';
+
+/**
+ * Ce que l'utilisateur est en train de faire dans la vue : ce qu'il a saisi
+ * sans l'avoir encore validé, les notices qu'il a dépliées, le champ où il
+ * écrit. Une vue redessinée parce qu'un autre appareil a touché à la cave
+ * effaçait tout cela, par exemple une clé Google en cours de collage.
+ */
+function releverSaisie(racine) {
+  const champs = [...racine.querySelectorAll('input, textarea')]
+    .filter((e) => !['file', 'checkbox', 'radio', 'hidden'].includes(e.type)
+      && cleDuChamp(e) && e.value !== e.defaultValue)
+    .map((e) => ({ cle: cleDuChamp(e), valeur: e.value }));
+  const actif = racine.contains(document.activeElement) ? cleDuChamp(document.activeElement) : '';
+  return { champs, ouverts: [...racine.querySelectorAll('details')].map((d) => d.open), actif };
+}
+
+function reposerSaisie(racine, { champs, ouverts, actif }) {
+  const tous = [...racine.querySelectorAll('input, textarea')];
+  for (const { cle, valeur } of champs) {
+    const champ = tous.find((e) => cleDuChamp(e) === cle);
+    // Seulement dans un champ resté tel que dessiné : on rend une saisie, on
+    // n'écrase pas ce que le nouveau dessin vient d'y mettre.
+    if (champ && champ.value === champ.defaultValue) champ.value = valeur;
+  }
+  racine.querySelectorAll('details').forEach((d, i) => { if (ouverts[i]) d.open = true; });
+  if (actif) tous.find((e) => cleDuChamp(e) === actif)?.focus({ preventScroll: true });
+}
+
 function rendre() {
   const chemin = cheminCourant();
   const route = resoudre(chemin);
@@ -79,7 +109,9 @@ function rendre() {
   document.title = `${route.titre} — Cave à vin`;
 
   if (changementDeVue) vider(principal);
+  const saisie = changementDeVue ? null : releverSaisie(principal);
   route.vue.rendre(principal, { naviguer, params: route.params });
+  if (saisie) reposerSaisie(principal, saisie);
   majOnglets(chemin);
   if (changementDeVue) principal.scrollTo({ top: 0 });
 }
@@ -180,17 +212,25 @@ function surveillerLesMisesAJour() {
     location.reload();
   };
 
+  const occupe = () => document.querySelector('dialog[open]')
+    || VUES_EN_COURS.some((prefixe) => cheminCourant().startsWith(prefixe));
+  let guette = false;
+
   const quandCestSur = () => {
-    const occupe = document.querySelector('dialog[open]')
-      || VUES_EN_COURS.some((prefixe) => cheminCourant().startsWith(prefixe));
-    if (!occupe) {
+    if (!occupe()) {
       appliquer();
       return;
     }
+    if (guette) return;
+    guette = true;
     proposerLaMiseAJour(appliquer);
-    document.addEventListener('close', () => {
-      if (!document.querySelector('dialog[open]')) quandCestSur();
-    }, { capture: true, once: true });
+    // On réessaie à chaque fenêtre fermée et à chaque changement d'écran. Le
+    // seul guet d'une fermeture laissait la mise à jour en plan quand on
+    // quittait le parcours photo, ou quand une fenêtre se refermait sur une
+    // autre restée ouverte.
+    const reessayer = () => { if (!occupe()) appliquer(); };
+    document.addEventListener('close', reessayer, true);
+    addEventListener('hashchange', reessayer);
   };
 
   const verifier = async () => {

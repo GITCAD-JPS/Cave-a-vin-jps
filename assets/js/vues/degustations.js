@@ -21,26 +21,17 @@ let filtre = '';
 let recherche = '';
 
 export function rendre(conteneur, { naviguer }) {
-  const toutes = journalComplet(store.vins(), store.degustations());
-  const resultats = filtrer(toutes);
+  const compte = el('p', { class: 'discret' });
+  const liste = el('div');
 
-  vider(conteneur);
-  conteneur.append(el('div', { class: 'vue-degustations' }, [
-    el('header', { class: 'entete-vue' }, [
-      el('div', {}, [
-        el('h1', { text: 'Journal' }),
-        el('p', { class: 'discret', text: `${pluriel(resultats.length, 'ligne', 'lignes')} sur ${toutes.length}` }),
-      ]),
-      // Le journal réunit deux choses, mais on n'y ajoute que des dégustations :
-      // une bouteille entre en cave par la fiche du vin, pas par ici.
-      bouton('Dégustation', {
-        icone: 'plus',
-        classe: 'bouton bouton-primaire',
-        onclick: () => ouvrirFormulaire(null, naviguer),
-      }),
-    ]),
-    barreOutils(naviguer),
-    resultats.length
+  // Seule la liste se redessine quand on cherche ou filtre. Reconstruire toute
+  // la vue remplaçait le champ en pleine frappe : le curseur revenait au début
+  // (« bar » puis « olo » donnait « olobar ») et l'iPhone refermait le clavier.
+  const majListe = () => {
+    const toutes = journalComplet(store.vins(), store.degustations());
+    const resultats = filtrer(toutes);
+    compte.textContent = `${pluriel(resultats.length, 'ligne', 'lignes')} sur ${toutes.length}`;
+    vider(liste).append(resultats.length
       ? el('div', { class: 'liste-degustations' }, resultats.map(({ genre, fiche }) => (
         genre === 'entree'
           ? ligneEntree(fiche, { onOuvrir: (id) => naviguer(`/vin/${id}`) })
@@ -49,25 +40,41 @@ export function rendre(conteneur, { naviguer }) {
             onModifier: (entree) => ouvrirFormulaire(entree, naviguer),
           })
       )))
-      : etatVide('Journal vide', 'Modifiez la recherche, ou ajoutez une bouteille à la cave.'),
+      : etatVide('Journal vide', 'Modifiez la recherche, ou ajoutez une bouteille à la cave.'));
+  };
+
+  vider(conteneur);
+  conteneur.append(el('div', { class: 'vue-degustations' }, [
+    el('header', { class: 'entete-vue' }, [
+      el('div', {}, [el('h1', { text: 'Journal' }), compte]),
+      // Le journal réunit deux choses, mais on n'y ajoute que des dégustations :
+      // une bouteille entre en cave par la fiche du vin, pas par ici.
+      bouton('Dégustation', {
+        icone: 'plus',
+        classe: 'bouton bouton-primaire',
+        onclick: () => ouvrirFormulaire(null, naviguer),
+      }),
+    ]),
+    barreOutils(majListe),
+    liste,
   ]));
+  majListe();
 }
 
-function barreOutils(naviguer) {
+function barreOutils(majListe) {
   const champRecherche = el('input', {
     type: 'search',
     class: 'recherche',
     placeholder: 'Rechercher dans le journal…',
-    value: recherche,
     'aria-label': 'Rechercher dans le journal',
   });
+  champRecherche.value = recherche;
   let minuteur = null;
   champRecherche.addEventListener('input', () => {
     clearTimeout(minuteur);
     minuteur = setTimeout(() => {
       recherche = champRecherche.value;
-      naviguer(null);
-      document.querySelector('.vue-degustations .recherche')?.focus();
+      majListe();
     }, 200);
   });
 
@@ -75,7 +82,7 @@ function barreOutils(naviguer) {
     champRecherche,
     selection(FILTRES, filtre, {
       'aria-label': 'Filtrer le journal',
-      onchange: (e) => { filtre = e.target.value; naviguer(null); },
+      onchange: (e) => { filtre = e.target.value; majListe(); },
     }),
   ]);
 }

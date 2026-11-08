@@ -55,6 +55,25 @@ export function bouton(libelle, { icone: nomIcone, classe = 'bouton', ...reste }
   return noeud;
 }
 
+let numeroGroupe = 0;
+
+/**
+ * Un champ fait de plusieurs contrôles, comme le choix d'une photo.
+ *
+ * Il ne peut pas être un <label> : un label transmet tout clic sur une partie
+ * inerte (l'image, son libellé) au premier bouton qu'il contient. Toucher
+ * l'aperçu d'une photo retirait la photo, ou lançait une relecture facturée.
+ */
+export function champGroupe(etiquette, controle, aide) {
+  numeroGroupe += 1;
+  const id = `champ-groupe-${numeroGroupe}`;
+  return el('div', { class: 'champ', role: 'group', 'aria-labelledby': id }, [
+    el('span', { class: 'champ-etiquette', id, text: etiquette }),
+    controle,
+    aide ? el('span', { class: 'champ-aide', text: aide }) : null,
+  ]);
+}
+
 export function champ(etiquette, controle, aide) {
   return el('label', { class: 'champ' }, [
     el('span', { class: 'champ-etiquette', text: etiquette }),
@@ -103,8 +122,16 @@ export function dialogue(titre, contenu, { largeur = '' } = {}) {
     el('div', { class: 'dialogue-corps' }, contenu(fermer)),
   );
   modale.addEventListener('close', () => modale.remove());
+  // Un clic sur le fond ferme, mais seulement s'il y a commencé : une
+  // sélection de texte relâchée hors de la boîte produit aussi un clic sur le
+  // fond, et faisait perdre toute la saisie.
+  let gesteSurLeFond = false;
+  modale.addEventListener('pointerdown', (evenement) => {
+    gesteSurLeFond = evenement.target === modale;
+  });
   modale.addEventListener('click', (evenement) => {
-    if (evenement.target === modale) fermer();
+    if (evenement.target === modale && gesteSurLeFond) fermer();
+    gesteSurLeFond = false;
   });
   document.body.append(modale);
   modale.showModal();

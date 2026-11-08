@@ -9,6 +9,13 @@ import * as store from '../store.js';
 
 // Le plat choisi survit à l'aller-retour vers une fiche.
 let platChoisi = '';
+
+/** Ouvre la page sur un plat, depuis la fiche d'un vin par exemple. */
+export function choisirPlat(cle) {
+  platChoisi = cle;
+  couleurChoisie = '';
+  toutAfficher = false;
+}
 let toutAfficher = false;
 // Filtre de couleur, qui vaut pour tous les plats. Vide veut dire toutes.
 let couleurChoisie = '';
@@ -96,12 +103,15 @@ function resultats(vins, naviguer) {
     // cette couleur-là. Sans quoi on croirait la table muette.
     const teinte = (COULEURS_FILTRE.find((c) => c.cle === couleurChoisie)?.libelle || '')
       .toLowerCase();
+    // Les bouteilles et non les vins, et seulement s'il y en a vraiment.
+    const autres = tous.reduce((total, e) => total + (e.vin?.quantite || 0), 0);
+    const autreCouleur = couleurChoisie && autres > 0;
     return etatVide(
-      couleurChoisie
+      autreCouleur
         ? `Aucun vin ${teinte} pour « ${libelle} »`
         : `Rien d'évident pour « ${libelle} »`,
-      couleurChoisie
-        ? `La cave propose ${pluriel(tous.length, 'bouteille', 'bouteilles')} pour ce plat, `
+      autreCouleur
+        ? `La cave propose ${pluriel(autres, 'bouteille', 'bouteilles')} pour ce plat, `
           + 'mais d’une autre couleur. Touchez « Toutes » pour les voir.'
         : "Aucune bouteille en cave ne ressort pour ce plat. Le cépage ou l'appellation "
           + 'manquent peut-être sur certaines fiches.',

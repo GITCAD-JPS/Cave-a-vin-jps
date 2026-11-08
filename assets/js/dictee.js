@@ -18,7 +18,8 @@ const sansAccent = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '');
 const NOMBRES = new Map(Object.entries({
   un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8,
   neuf: 9, dix: 10, onze: 11, douze: 12, treize: 13, quatorze: 14, quinze: 15,
-  seize: 16, dix7: 17, dixhuit: 18, vingt: 20, vingtquatre: 24, trente: 30, cinquante: 50,
+  seize: 16, dixsept: 17, dixhuit: 18, dixneuf: 19, vingt: 20, vingtdeux: 22, vingttrois: 23,
+  vingtquatre: 24, vingtcinq: 25, vingtsix: 26, trente: 30, cinquante: 50,
 }));
 
 function nombre(mot) {
@@ -28,16 +29,33 @@ function nombre(mot) {
   return NOMBRES.get(nu) ?? null;
 }
 
-const CHIFFRE = '\\d+|une?|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|vingt(?:[\\s-]quatre)?|trente|cinquante';
+// Les bornes d'un mot. `\b` ne les reconnaît qu'entre lettres sans accent : il
+// ne voyait pas la fin de « rosé » ni le début d'« élaboré », et la dictée,
+// qui écrit les accents, n'en comprenait aucun. Le trait d'union compte comme
+// une lettre, pour que « vingt-deux » ne se lise pas « deux ».
+const DEBUT = '(?<![\\p{L}\\p{N}-])';
+const FIN = '(?![\\p{L}\\p{N}])';
+const mot = (corps, suite = '') => new RegExp(`${DEBUT}(?:${corps})${FIN}${suite}`, 'iu');
+
+// Les composés d'abord : « dix » ne doit pas prendre « dix-sept » de court.
+const CHIFFRE = '\\d+|dix[\\s-](?:sept|huit|neuf)|vingt[\\s-](?:deux|trois|quatre|cinq|six)'
+  + '|une?|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize'
+  + '|vingt|trente|cinquante';
 
 /** Les couleurs, dites comme on les dit. */
 const COULEURS_DITES = [
-  [/\b(?:p[ée]tillants?|mousseux|champagnes?|cr[ée]mants?|prosecco|spumante)\b/i, 'petillant'],
-  [/\b(?:liquoreux|moelleux|doux\s+naturels?)\b/i, 'liquoreux'],
-  [/\bros[ée]s?\b/i, 'rose'],
-  [/\bblancs?\b/i, 'blanc'],
-  [/\brouges?\b/i, 'rouge'],
+  [mot('p[ée]tillants?|mousseux|champagnes?|cr[ée]mants?|prosecco|spumante'), 'petillant'],
+  [mot('liquoreux|moelleux|doux\\s+naturels?'), 'liquoreux'],
+  [mot('ros[ée]s?'), 'rose'],
+  [mot('blancs?'), 'blanc'],
+  [mot('rouges?'), 'rouge'],
 ];
+
+// Une couleur qui fait partie d'un nom : « Pinot Blanc », « Cheval Blanc »,
+// « Blanc de Blancs ». Elle dit encore la couleur quand rien d'autre ne la
+// dit, mais elle reste dans le nom.
+const AVANT_UNE_COULEUR_DE_NOM = /(?:pinot|sauvignon|chenin|grenache|cheval|ugni|merlot|mont|blancs?\s+de)\s+$/iu;
+const APRES_UNE_COULEUR_DE_NOM = /^\s+de\s/iu;
 
 /** Les trois rangements de la cave, et les façons de les nommer. */
 const EMPLACEMENTS_DITS = [
@@ -52,14 +70,19 @@ const ANNONCES = [
   // Seuls les mots qui ne servent qu'à annoncer : « domaine », « château » ou
   // « maison » ouvrent bien plus souvent le nom du vin — « Domaine de
   // Villemajou » — qu'ils n'annoncent un producteur.
-  ['producteur', /\b(?:producteur|vigneron|r[ée]coltant|[ée]labor[ée]\s+par|vinifi[ée]\s+par)\b\s*:?\s*/i],
-  ['region', /\b(?:r[ée]gion|appellation|terroir)\b\s*:?\s*/i],
-  ['cepage', /\b(?:c[ée]pages?|assemblage)\b\s*:?\s*/i],
-  ['source', /\b(?:achet[ée]\s+(?:chez|[àa]|au)|provenance|fournisseur|caviste)\b\s*:?\s*/i],
-  ['emplacementPrecis', /\b(?:casier|rang[ée]e|[ée]tag[èe]re|emplacement)\b\s*:?\s*/i],
-  ['note', /\b(?:note|remarque|commentaire|observation)\b\s*:?\s*/i],
-  ['nom', /\b(?:nom|cuv[ée]e)\b\s*:?\s*/i],
+  ['producteur', mot('producteur|vigneron|r[ée]coltant|[ée]labor[ée]\\s+par|vinifi[ée]\\s+par', '\\s*:?\\s*')],
+  ['region', mot('r[ée]gion|appellation|terroir', '\\s*:?\\s*')],
+  ['cepage', mot('c[ée]pages?|assemblage', '\\s*:?\\s*')],
+  ['source', mot('achet[ée]\\s+(?:chez|[àa]|au)|provenance|fournisseur|caviste', '\\s*:?\\s*')],
+  ['emplacementPrecis', mot('casier|rang[ée]e|[ée]tag[èe]re|emplacement', '\\s*:?\\s*')],
+  ['note', mot('note|remarque|commentaire|observation', '\\s*:?\\s*')],
+  ['nom', mot('nom|cuv[ée]e', '\\s*:?\\s*')],
 ];
+
+// Là où s'arrête ce qu'une annonce a pris : une ponctuation, ou l'annonce suivante.
+const FIN_ANNONCE = new RegExp(`[,.;]|${DEBUT}(?:producteur|vigneron|r[ée]coltant|r[ée]gion|appellation`
+  + `|terroir|c[ée]pages?|assemblage|note|remarque|commentaire|observation|casier|rang[ée]e`
+  + `|[ée]tag[èe]re|emplacement|cuv[ée]e)${FIN}`, 'iu');
 
 const VIDE = /^[\s,.;:–—-]*$/;
 
@@ -83,10 +106,26 @@ export function analyserDictee(texte) {
     return trouve;
   };
 
-  // 1. La couleur : un mot, sans ambiguïté possible avec le reste.
+  // 1. La couleur. Celle qui est dite pour elle-même l'emporte, et se retire
+  //    du texte. Celle qui fait partie d'un nom (« Pinot Blanc ») ne sert que
+  //    si rien d'autre ne la dit, et reste dans le nom : « Château Cheval
+  //    Blanc, rouge » est un rouge qui s'appelle Cheval Blanc.
+  let couleurDeNom = '';
   for (const [motif, cle] of COULEURS_DITES) {
-    if (consommer(motif)) { champs.couleur = cle; break; }
+    const global = new RegExp(motif.source, 'giu');
+    const seule = [...flot.matchAll(global)].find((m) => {
+      const dansUnNom = AVANT_UNE_COULEUR_DE_NOM.test(flot.slice(0, m.index))
+        || APRES_UNE_COULEUR_DE_NOM.test(flot.slice(m.index + m[0].length));
+      if (dansUnNom && !couleurDeNom) couleurDeNom = cle;
+      return !dansUnNom;
+    });
+    if (seule) {
+      champs.couleur = cle;
+      flot = `${flot.slice(0, seule.index)} ${flot.slice(seule.index + seule[0].length)}`;
+      break;
+    }
   }
+  if (!champs.couleur && couleurDeNom) champs.couleur = couleurDeNom;
 
   // 2. La contenance, avant les nombres : « magnum » ou « 75 centilitres ».
   if (consommer(/\bmagnums?\b/i)) champs.volume = '150 cl (Magnum)';
@@ -119,8 +158,8 @@ export function analyserDictee(texte) {
   }
 
   // 6. Le nombre de bouteilles, en chiffres ou en toutes lettres.
-  const quantite = consommer(new RegExp(`\\b(${CHIFFRE})\\s*(?:bouteilles?|flacons?)\\b`, 'i'))
-    || consommer(new RegExp(`\\b(${CHIFFRE})\\s*(?:fois|exemplaires?)\\b`, 'i'));
+  const quantite = consommer(new RegExp(`${DEBUT}(${CHIFFRE})\\s*(?:bouteilles?|flacons?)${FIN}`, 'iu'))
+    || consommer(new RegExp(`${DEBUT}(${CHIFFRE})\\s*(?:fois|exemplaires?)${FIN}`, 'iu'));
   if (quantite) {
     const n = nombre(quantite[1]);
     if (n !== null && n >= 0 && n <= 999) champs.quantite = n;
@@ -132,7 +171,7 @@ export function analyserDictee(texte) {
     const depart = flot.search(motif);
     if (depart < 0) continue;
     const apres = flot.slice(depart).replace(motif, '');
-    const fin = apres.search(/[,.;]|\b(?:producteur|vigneron|r[ée]coltant|r[ée]gion|appellation|terroir|c[ée]pages?|assemblage|note|remarque|commentaire|observation|casier|rang[ée]e|[ée]tag[èe]re|emplacement|cuv[ée]e)\b/i);
+    const fin = apres.search(FIN_ANNONCE);
     const valeur = (fin < 0 ? apres : apres.slice(0, fin)).trim();
     if (!valeur) continue;
     champs[cle] = valeur;
@@ -143,7 +182,9 @@ export function analyserDictee(texte) {
   //    qu'on le dit d'abord ; un deuxième morceau, s'il reste, est une
   //    précision que l'on propose plutôt que de la placer d'office.
   const restes = flot
-    .split(/[,.;]| \b(?:et|puis|avec|dans|de la|du|au)\b /i)
+    // « du », « de la », « au » ne séparent rien : ils tiennent ensemble
+    // « Domaine du Mont d'Or » ou « Château de la Tour ».
+    .split(/[,.;]| \b(?:et|puis|avec|dans)\b /i)
     .map((m) => m.replace(/^\s*(?:le|la|les|l'|un|une|des|c'est|il\s+y\s+a)\s+/i, '').trim())
     .filter((m) => m && !VIDE.test(m) && m.length > 1);
 
